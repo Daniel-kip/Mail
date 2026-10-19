@@ -1,0 +1,808 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mailvora System Infrastructure</title>
+<meta name="author" content="Mailvora · Powered by TECHCORE SOLUTIONS">
+<meta name="description" content="Architecture, data flows and security controls of the Mailvora platform.">
+<style>
+  /* Print layout: A4 portrait, landscape pages for wide diagrams, vector
+     diagrams (inline SVG) so every figure stays sharp at any zoom. */
+  @page {
+    size: A4;
+    margin: 18mm 16mm 20mm;
+    @bottom-left { content: "Mailvora · System Infrastructure · Confidential: platform operators"; font: 7.5pt "Segoe UI", Arial, sans-serif; color: #66726d; }
+    @bottom-right { content: "Page " counter(page) " of " counter(pages); font: 7.5pt "Segoe UI", Arial, sans-serif; color: #66726d; }
+  }
+  @page cover { margin: 0; @bottom-left { content: none; } @bottom-right { content: none; } }
+  @page wide {
+    size: A4 landscape;
+    margin: 13mm 14mm 15mm;
+    @bottom-left { content: "Mailvora · System Infrastructure · Confidential: platform operators"; font: 7.5pt "Segoe UI", Arial, sans-serif; color: #66726d; }
+    @bottom-right { content: "Page " counter(page) " of " counter(pages); font: 7.5pt "Segoe UI", Arial, sans-serif; color: #66726d; }
+  }
+  :root { --em: #0b7a5c; --em-deep: #065f46; --em-soft: #e7f6ef; --ink: #111816; --ink2: #3d4844; --ink3: #66726d; --line: #d9dfdc; --bg2: #f6f8f7; --red: #c0263d; }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 0; font: 9.3pt/1.5 "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: var(--ink); }
+  h1, h2, h3 { color: var(--ink); line-height: 1.25; break-after: avoid; }
+  h1 { font-size: 21pt; margin: 0 0 4mm; letter-spacing: -.01em; }
+  h1 .num { color: var(--em); margin-right: 3mm; }
+  h2 { font-size: 12.5pt; margin: 5.5mm 0 2.2mm; color: var(--em-deep); }
+  h3 { font-size: 10.5pt; margin: 5mm 0 2mm; }
+  p { margin: 0 0 2.6mm; }
+  .lead { font-size: 11pt; color: var(--ink2); }
+  .section { break-before: page; }
+  .wide { page: wide; break-before: page; }
+  .muted { color: var(--ink3); }
+  code, .mono { font-family: "Cascadia Mono", Consolas, "Courier New", monospace; font-size: .86em; }
+  code { background: var(--bg2); border: 1px solid #e6ebe8; border-radius: 3px; padding: 0 .3em; }
+  table { width: 100%; border-collapse: collapse; margin: 2mm 0 3.5mm; font-size: 8.2pt; break-inside: auto; }
+  thead { display: table-header-group; }
+  tr { break-inside: avoid; }
+  th { text-align: left; background: var(--em-deep); color: #fff; font-weight: 600; padding: 1.3mm 2mm; }
+  td { padding: 1.15mm 2mm; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tbody tr:nth-child(even) td { background: #fafbfa; }
+  td:first-child { font-weight: 600; }
+  ul, ol { margin: 0 0 3mm; padding-left: 5mm; }
+  li { margin: .6mm 0; }
+  figure { margin: 2mm 0 4mm; break-inside: avoid; }
+  figure.fit svg { width: auto; max-width: 100%; max-height: var(--fit, 112mm); margin: 0 auto; }
+  figure svg { width: 100%; height: auto; display: block; }
+  figcaption { margin-top: 2mm; font-size: 8.4pt; color: var(--ink3); }
+  figcaption b { color: var(--ink); }
+  .callout { border-left: 3px solid var(--em); background: var(--em-soft); padding: 2.5mm 3.5mm; margin: 3mm 0 4mm; border-radius: 0 4px 4px 0; break-inside: avoid; }
+  .callout.warn { border-color: #b45309; background: #fdf4e7; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; margin: 3mm 0 3mm; }
+  .kpi { border: 1px solid var(--line); border-radius: 6px; padding: 3mm; background: var(--bg2); }
+  .kpi b { display: block; font-size: 13pt; color: var(--em-deep); }
+  .kpi span { font-size: 8pt; color: var(--ink3); }
+
+  /* Cover */
+  .cover { page: cover; height: 297mm; position: relative; overflow: hidden; color: #fff;
+    background: radial-gradient(120mm 120mm at 85% 12%, rgba(52, 211, 153, .35), transparent 70%), linear-gradient(160deg, #0b1612 0%, #0f211b 45%, #065f46 100%); }
+  .cover-grid { position: absolute; inset: 0; opacity: .12; background-image: linear-gradient(rgba(255,255,255,.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.6) 1px, transparent 1px); background-size: 12mm 12mm; }
+  .cover-inner { position: absolute; left: 22mm; right: 22mm; top: 30mm; bottom: 24mm; display: flex; flex-direction: column; }
+  .brand { display: flex; align-items: center; gap: 4mm; }
+  .brand img { width: 16mm; height: 16mm; }
+  .brand b { font-size: 20pt; letter-spacing: -.01em; }
+  .brand b span { color: #5fd4a8; }
+  .brand small { display: block; font-size: 7.5pt; letter-spacing: .25em; color: #a7c9bb; margin-top: 1mm; }
+  .cover h1 { color: #fff; font-size: 38pt; margin: 58mm 0 4mm; letter-spacing: -.02em; line-height: 1.05; }
+  .cover h1 em { font-style: normal; color: #5fd4a8; }
+  .cover .sub { font-size: 13pt; color: #cfe3da; max-width: 140mm; }
+  .cover-meta { margin-top: auto; display: grid; grid-template-columns: repeat(4, auto); gap: 4mm 10mm; justify-content: start; font-size: 8.5pt; color: #cfe3da; }
+  .cover-meta b { display: block; color: #fff; font-size: 9.5pt; }
+  .cover-foot { margin-top: 10mm; padding-top: 4mm; border-top: 1px solid rgba(255,255,255,.2); display: flex; justify-content: space-between; font-size: 8pt; color: #a7c9bb; }
+  .cover-foot strong { color: #5fd4a8; letter-spacing: .08em; }
+
+  /* Contents */
+  .toc { list-style: none; padding: 0; margin: 4mm 0; columns: 1; }
+  .toc li { display: flex; gap: 3mm; padding: 2mm 0; border-bottom: 1px dotted var(--line); font-size: 10pt; }
+  .toc li b { color: var(--em); width: 8mm; }
+  .toc li span { flex: 1; }
+  .toc li em { font-style: normal; color: var(--ink3); font-size: 8.6pt; }
+
+  /* Diagram styling (shared by every inline SVG) */
+  svg text { font-family: "Segoe UI", Arial, sans-serif; fill: var(--ink); }
+  .t-title { font-size: 15px; font-weight: 700; }
+  .t-sub { font-size: 11.5px; fill: var(--ink2); }
+  .t-small { font-size: 10.5px; fill: var(--ink3); }
+  .t-white { fill: #fff; }
+  .t-mint { fill: #bff0dc; }
+  .t-zone { font-size: 12px; font-weight: 800; letter-spacing: .12em; fill: var(--ink3); }
+  .lab { font-size: 11px; fill: var(--ink2); paint-order: stroke; stroke: #fff; stroke-width: 5px; stroke-linejoin: round; font-weight: 600; }
+  .lab-red { fill: var(--red); }
+  .box { fill: #fff; stroke: #b9c4bf; stroke-width: 1.4; }
+  .box-em { fill: var(--em-soft); stroke: var(--em); stroke-width: 1.6; }
+  .box-ext { fill: #f3f4f6; stroke: #9aa3ad; stroke-width: 1.3; }
+  .box-data { fill: #eef0ff; stroke: #5b5fd6; stroke-width: 1.5; }
+  .box-mail { fill: #e8f4fd; stroke: #1f7fbf; stroke-width: 1.5; }
+  .box-edge { fill: #fff6e5; stroke: #c27a12; stroke-width: 1.5; }
+  .box-sec { fill: #fdecef; stroke: var(--red); stroke-width: 1.4; }
+  .zone { fill: none; stroke: #8b9691; stroke-width: 1.4; stroke-dasharray: 7 5; }
+  .zone-fill { fill: #f7f9f8; stroke: #c7d0cc; stroke-width: 1.2; }
+  .tb { stroke: var(--red); stroke-width: 2.2; stroke-dasharray: 9 6; fill: none; }
+  .ln { stroke: #46524d; stroke-width: 1.6; fill: none; }
+  .ln-em { stroke: var(--em); stroke-width: 2; fill: none; }
+  .ln-dash { stroke: #46524d; stroke-width: 1.4; fill: none; stroke-dasharray: 6 4; }
+  .ln-out { stroke: #7c3aed; stroke-width: 1.6; fill: none; stroke-dasharray: 3 3; }
+  .ln-red { stroke: var(--red); stroke-width: 1.8; fill: none; }
+  .life { stroke: #aab4af; stroke-width: 1.2; stroke-dasharray: 5 5; }
+  .badge { fill: var(--em); }
+  .badge-t { font-size: 10.5px; font-weight: 800; fill: #fff; text-anchor: middle; }
+  .note { fill: #fffbe6; stroke: #d6b85a; stroke-width: 1.1; }
+</style>
+</head>
+<body>
+
+<!-- Shared arrowheads for every diagram -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#46524d"/></marker>
+    <marker id="ar-em" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#0b7a5c"/></marker>
+    <marker id="ar-out" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#7c3aed"/></marker>
+    <marker id="ar-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#c0263d"/></marker>
+    <linearGradient id="g-core" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0e8f6b"/><stop offset="1" stop-color="#065f46"/></linearGradient>
+  </defs>
+</svg>
+
+<!-- ═════════════════════════════ COVER ═════════════════════════════ -->
+<section class="cover">
+  <div class="cover-grid"></div>
+  <div class="cover-inner">
+    <div class="brand"><img src="../../public/assets/brand/mailvora-mark.svg" alt=""><div><b>Mail<span>vora</span></b><small>BUSINESS EMAIL</small></div></div>
+    <h1>System<br><em>Infrastructure</em></h1>
+    <p class="sub">Architecture, system flows and security flows of the Mailvora business email platform: components, network, data paths, trust boundaries and controls.</p>
+    <div class="cover-meta">
+      <div><b>Version</b>1.0</div>
+      <div><b>Date</b>15 October 2026</div>
+      <div><b>Status</b>Pre-production baseline</div>
+      <div><b>Classification</b>Confidential · operators</div>
+    </div>
+    <div class="cover-foot"><span>© 2026 Mailvora. All rights reserved.</span><span>Powered by <strong>TECHCORE SOLUTIONS</strong></span></div>
+  </div>
+</section>
+
+<!-- ═════════════════════════════ CONTENTS ═════════════════════════════ -->
+<section>
+  <h1>Contents</h1>
+  <ol class="toc">
+    <li><b>1</b><span>Executive summary</span><em>Purpose, scope and key properties</em></li>
+    <li><b>2</b><span>System context</span><em>Users, external services and the platform boundary</em></li>
+    <li><b>3</b><span>Deployment architecture</span><em>Hosts, containers, networks, ports and volumes</em></li>
+    <li><b>4</b><span>Component inventory</span><em>What each part does and where it runs</em></li>
+    <li><b>5</b><span>System flows</span><em>Outbound mail, inbound mail and mailbox access, payments, verification</em></li>
+    <li><b>6</b><span>Security architecture</span><em>Request security pipeline, trust boundaries, defence in depth</em></li>
+    <li><b>7</b><span>Security controls</span><em>Controls matrix, secrets, threats and mitigations</em></li>
+    <li><b>8</b><span>Data protection</span><em>Data inventory, retention, backups, Kenya Data Protection Act</em></li>
+    <li><b>9</b><span>Operations</span><em>Monitoring, backup and restore, incidents, release gates</em></li>
+    <li><b>A</b><span>Appendix: network and port reference</span><em>Every listening port and who may reach it</em></li>
+    <li><b>B</b><span>Document control</span><em>Ownership, review cycle and sources</em></li>
+  </ol>
+  <div class="callout"><b>How to read the diagrams.</b> Every figure is drawn as vector graphics: zoom in as far as you need without loss of quality. Green elements are Mailvora's own components, blue is the mail tier, indigo is data at rest, amber is the network edge, grey is outside parties, and red dashed lines mark trust boundaries.</div>
+</section>
+
+<!-- ═════════════════════════════ 1 EXECUTIVE SUMMARY ═════════════════════════════ -->
+<section class="section">
+  <h1><span class="num">1</span>Executive summary</h1>
+  <p class="lead">Mailvora is a self-hosted, multi-tenant business email platform for Kenyan institutions and developers. It relays transactional email for applications through a REST API, hosts work mailboxes on an organisation's own domain, and bills flat monthly prices in Kenyan shillings through M-Pesa.</p>
+  <div class="kpis">
+    <div class="kpi"><b>1 VPS</b><span>Docker Compose deployment, no git required</span></div>
+    <div class="kpi"><b>8</b><span>services: Nginx, web app, API, PostgreSQL, Postfix, Dovecot, Rspamd, Redis</span></div>
+    <div class="kpi"><b>7</b><span>public ports: 22, 25, 80, 443, 465, 587, 993</span></div>
+    <div class="kpi"><b>KES</b><span>flat pricing; M-Pesa STK push via PesaTide</span></div>
+  </div>
+  <h2>Purpose and scope</h2>
+  <p>This document describes how the platform is built and how data and trust move through it. It is the reference for operators deploying and running Mailvora, for security reviewers and penetration testers, and for engineers changing the system. It covers the production topology defined in <code>backend/docker-compose.yml</code> and the host Nginx site in <code>backend/infra/nginx/mailvora.conf</code>.</p>
+  <h2>Architecture principles</h2>
+  <ul>
+    <li><b>Proven mail software for protocols.</b> Postfix handles SMTP, Dovecot handles IMAP, LMTP, SASL, Sieve and quotas, and Rspamd filters spam. Mailvora's Rust service is the control plane and never implements SMTP or IMAP itself.</li>
+    <li><b>Backend-for-frontend.</b> Browsers talk only to the PHP web application; it calls the Rust API over a private address and keeps API session cookies server-side.</li>
+    <li><b>Tenant isolation by construction.</b> The organisation is always derived from the authenticated session or API key, never from request input, and every query is scoped by it.</li>
+    <li><b>Secure by default.</b> Production refuses to start with unsafe settings (plain-HTTP addresses, insecure cookies, debug output, development shortcuts).</li>
+    <li><b>Durable, idempotent processing.</b> Messages and jobs are stored before they are acknowledged; workers claim jobs with leases, retry with back-off and never send twice for the same idempotency key.</li>
+  </ul>
+  <h2>Key properties</h2>
+  <table>
+    <thead><tr><th style="width:28%">Property</th><th>How it is achieved</th></tr></thead>
+    <tbody>
+      <tr><td>Confidentiality</td><td>TLS 1.2+ on every public endpoint; Argon2id password hashes; DKIM keys and webhook secrets encrypted with AES-256-GCM; sealed, session-bound links for every signed-in page; encrypted backups.</td></tr>
+      <tr><td>Integrity</td><td>DKIM signatures on all outbound mail; HMAC-signed webhooks in both directions (Mailvora → customers, PesaTide → Mailvora); CSRF tokens on every form; audit log of privileged actions.</td></tr>
+      <tr><td>Availability</td><td>Containers restart automatically; queue leases recover from worker crashes; per-IP and per-account rate limits; nightly encrypted off-site backups with a practised restore.</td></tr>
+      <tr><td>Accountability</td><td>Every sign-in, MFA, role, key, billing and suspension event is written to the audit log with actor, target and IP; operators review it on the Security page.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═════════════════════════════ 2 SYSTEM CONTEXT ═════════════════════════════ -->
+<section class="section">
+  <h1><span class="num">2</span>System context</h1>
+  <p class="lead">Three kinds of people and systems use Mailvora, and the platform depends on five kinds of outside service. Everything inside the green box runs on the operator's own server.</p>
+  <figure class="fit" style="--fit:100mm">
+    <svg viewBox="0 0 1000 640" role="img" aria-label="System context diagram">
+      <!-- Platform -->
+      <rect x="360" y="200" width="280" height="230" rx="20" fill="url(#g-core)"/>
+      <text x="500" y="246" text-anchor="middle" class="t-title t-white" style="font-size:20px">Mailvora platform</text>
+      <text x="500" y="284" text-anchor="middle" class="t-sub t-mint">Web application (PHP)</text>
+      <text x="500" y="310" text-anchor="middle" class="t-sub t-mint">REST API &amp; workers (Rust)</text>
+      <text x="500" y="336" text-anchor="middle" class="t-sub t-mint">Mail tier: Postfix · Dovecot · Rspamd</text>
+      <text x="500" y="362" text-anchor="middle" class="t-sub t-mint">PostgreSQL · mailbox storage</text>
+      <text x="500" y="404" text-anchor="middle" class="t-small t-mint">One Linux VPS · Docker Compose</text>
+      <!-- Actors -->
+      <g><rect x="30" y="70" width="240" height="96" rx="14" class="box-em"/><text x="150" y="108" text-anchor="middle" class="t-title">Visitors &amp; customers</text><text x="150" y="132" text-anchor="middle" class="t-sub">Browser: website, console,</text><text x="150" y="150" text-anchor="middle" class="t-sub">operator console, webmail</text></g>
+      <g><rect x="30" y="268" width="240" height="96" rx="14" class="box-em"/><text x="150" y="306" text-anchor="middle" class="t-title">Institution staff</text><text x="150" y="330" text-anchor="middle" class="t-sub">Phone &amp; desktop mail apps</text><text x="150" y="348" text-anchor="middle" class="t-sub">(Gmail, Apple Mail, Outlook)</text></g>
+      <g><rect x="30" y="466" width="240" height="96" rx="14" class="box-em"/><text x="150" y="504" text-anchor="middle" class="t-title">Developer applications</text><text x="150" y="528" text-anchor="middle" class="t-sub">Invoices, receipts, codes,</text><text x="150" y="546" text-anchor="middle" class="t-sub">alerts via the REST API</text></g>
+      <path d="M270 118 C320 118 320 250 358 250" class="ln" marker-end="url(#ar)"/><text x="306" y="168" class="lab" text-anchor="middle">HTTPS 443</text>
+      <path d="M270 316 L358 316" class="ln" marker-end="url(#ar)" marker-start="url(#ar)"/><text x="314" y="306" class="lab" text-anchor="middle">IMAPS 993</text><text x="314" y="336" class="lab" text-anchor="middle">SMTPS 465/587</text>
+      <path d="M270 514 C320 514 320 382 358 382" class="ln" marker-end="url(#ar)"/><text x="306" y="462" class="lab" text-anchor="middle">HTTPS · API key</text>
+      <!-- Externals -->
+      <g><rect x="735" y="30" width="235" height="78" rx="12" class="box-ext"/><text x="852" y="62" text-anchor="middle" class="t-title">Internet mail servers</text><text x="852" y="86" text-anchor="middle" class="t-sub">Gmail, Outlook, institutions</text></g>
+      <g><rect x="735" y="148" width="235" height="78" rx="12" class="box-ext"/><text x="852" y="180" text-anchor="middle" class="t-title">PesaTide</text><text x="852" y="204" text-anchor="middle" class="t-sub">M-Pesa STK push &amp; webhooks</text></g>
+      <g><rect x="735" y="266" width="235" height="78" rx="12" class="box-ext"/><text x="852" y="298" text-anchor="middle" class="t-title">Africa's Talking</text><text x="852" y="322" text-anchor="middle" class="t-sub">SMS verification codes</text></g>
+      <g><rect x="735" y="384" width="235" height="78" rx="12" class="box-ext"/><text x="852" y="416" text-anchor="middle" class="t-title">Google</text><text x="852" y="440" text-anchor="middle" class="t-sub">"Continue with Google" (OIDC)</text></g>
+      <g><rect x="735" y="502" width="235" height="78" rx="12" class="box-ext"/><text x="852" y="534" text-anchor="middle" class="t-title">Public internet services</text><text x="852" y="558" text-anchor="middle" class="t-sub">DNS, DNSBLs, Pwned Passwords</text></g>
+      <path d="M642 230 C690 230 690 69 733 69" class="ln" marker-end="url(#ar)" marker-start="url(#ar)"/><text x="690" y="132" class="lab" text-anchor="middle">SMTP 25 · TLS</text>
+      <path d="M642 270 C690 270 690 187 733 187" class="ln" marker-end="url(#ar)" marker-start="url(#ar)"/><text x="694" y="226" class="lab" text-anchor="middle">HTTPS · HMAC</text>
+      <path d="M642 310 L733 305" class="ln" marker-end="url(#ar)"/><text x="688" y="298" class="lab" text-anchor="middle">HTTPS</text>
+      <path d="M642 352 C690 352 690 423 733 423" class="ln" marker-end="url(#ar)" marker-start="url(#ar)"/><text x="694" y="392" class="lab" text-anchor="middle">OIDC + PKCE</text>
+      <path d="M642 392 C690 392 690 541 733 541" class="ln" marker-end="url(#ar)"/><text x="690" y="478" class="lab" text-anchor="middle">DNS · HTTPS</text>
+      <!-- Legend -->
+      <g transform="translate(30 600)"><rect width="16" height="12" rx="3" class="box-em"/><text x="24" y="10" class="t-small">Mailvora users</text><rect x="150" width="16" height="12" rx="3" class="box-ext"/><text x="174" y="10" class="t-small">External services (outbound from the platform unless marked with two arrowheads)</text></g>
+    </svg>
+    <figcaption><b>Figure 1. System context.</b> Customers, staff and applications reach the platform on the left; the platform reaches external services on the right. PesaTide also calls back with signed payment webhooks, and other mail servers deliver inbound mail on port 25.</figcaption>
+  </figure>
+  <h2>Users and roles</h2>
+  <table>
+    <thead><tr><th style="width:26%">Who</th><th>What they do</th><th style="width:26%">How they authenticate</th></tr></thead>
+    <tbody>
+      <tr><td>Individual developer</td><td>Sends transactional email from an application; manages domains, keys, templates, webhooks, billing.</td><td>Username or email or phone + password; optional TOTP; Google sign-in</td></tr>
+      <tr><td>Institution owner / admin</td><td>Everything above, plus hosted mailboxes, aliases, support contacts, team roles.</td><td>As above; MFA strongly recommended (flagged on the operator Security page)</td></tr>
+      <tr><td>ICT support member</td><td>Helps staff: resend invitations, activation links, reset links, unlock accounts. Never sees or sets passwords.</td><td>Console account with the <code>ICT support</code> role</td></tr>
+      <tr><td>Mailbox user (staff, students)</td><td>Reads and sends work mail in webmail or a phone app; follows the guided phone setup.</td><td>Mailbox address + password (Argon2id), over TLS only</td></tr>
+      <tr><td>Platform operator</td><td>Runs the platform: tenants, plans, invoices, queue, mail-app settings, security overview, documentation.</td><td>Console account with operator rights; <b>MFA required in production</b></td></tr>
+      <tr><td>Application (machine)</td><td>Calls the REST API.</td><td>Scoped API key <code>mv_live_…</code> / <code>mv_test_…</code>, optionally restricted by IP and sender domain</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═════════════════════════════ 3 DEPLOYMENT (landscape) ═════════════════════════════ -->
+<section class="wide">
+  <h1><span class="num">3</span>Deployment architecture</h1>
+  <figure>
+    <svg viewBox="0 0 1400 760" role="img" aria-label="Deployment architecture diagram">
+      <!-- Clients -->
+      <g><rect x="40" y="18" width="210" height="72" rx="12" class="box-ext"/><text x="145" y="48" text-anchor="middle" class="t-title">Browsers</text><text x="145" y="70" text-anchor="middle" class="t-sub">site · console · webmail</text></g>
+      <g><rect x="280" y="18" width="210" height="72" rx="12" class="box-ext"/><text x="385" y="48" text-anchor="middle" class="t-title">API clients</text><text x="385" y="70" text-anchor="middle" class="t-sub">customer applications</text></g>
+      <g><rect x="560" y="18" width="230" height="72" rx="12" class="box-ext"/><text x="675" y="48" text-anchor="middle" class="t-title">Internet mail servers</text><text x="675" y="70" text-anchor="middle" class="t-sub">inbound &amp; outbound SMTP</text></g>
+      <g><rect x="860" y="18" width="250" height="72" rx="12" class="box-ext"/><text x="985" y="48" text-anchor="middle" class="t-title">Phone &amp; desktop mail apps</text><text x="985" y="70" text-anchor="middle" class="t-sub">IMAP and SMTP clients</text></g>
+      <!-- VPS -->
+      <rect x="20" y="120" width="1200" height="622" rx="18" class="zone-fill"/>
+      <rect x="20" y="120" width="1200" height="622" rx="18" class="zone"/>
+      <text x="40" y="146" class="t-zone">LINUX VPS · UBUNTU 24.04 LTS · UFW ALLOWS 22, 25, 80, 443, 465, 587, 993</text>
+      <!-- Nginx -->
+      <g><rect x="40" y="166" width="480" height="112" rx="12" class="box-edge"/><text x="60" y="194" class="t-title">Host Nginx · reverse proxy &amp; TLS</text>
+        <text x="60" y="218" class="t-sub">TLS 1.2 / 1.3 (Let's Encrypt) · HSTS 2 years · HTTP → HTTPS</text>
+        <text x="60" y="240" class="t-sub">Rate limits: web 20 r/s · sign-in 5 r/min · API 30 r/s</text>
+        <text x="60" y="262" class="t-sub">API host refuses /internal, /v1/webmail, /v1/admin</text></g>
+      <!-- Docker network -->
+      <rect x="40" y="302" width="1160" height="420" rx="14" fill="#ffffff" stroke="#9ab3a9" stroke-width="1.4"/>
+      <text x="60" y="708" class="t-zone">DOCKER NETWORK “MAILNET” (PRIVATE) · NO-NEW-PRIVILEGES · API &amp; WEB DROP ALL CAPABILITIES · BOUNDED LOGS</text>
+      <g><rect x="60" y="360" width="210" height="122" rx="12" class="box-em"/><text x="78" y="388" class="t-title">Web application</text><text x="78" y="410" class="t-sub">Apache + PHP 8.3, OPcache</text><text x="78" y="430" class="t-sub mono">127.0.0.1:8080</text><text x="78" y="450" class="t-sub">BFF · sealed links</text><text x="78" y="470" class="t-small">volume: web-sessions</text></g>
+      <g><rect x="300" y="360" width="220" height="122" rx="12" class="box-em"/><text x="318" y="388" class="t-title">API &amp; workers</text><text x="318" y="410" class="t-sub">Rust · Axum · SQLx</text><text x="318" y="430" class="t-sub mono">127.0.0.1:8088</text><text x="318" y="450" class="t-sub">outbox · billing · webhooks</text><text x="318" y="470" class="t-small">runs as unprivileged user</text></g>
+      <g><rect x="300" y="556" width="220" height="134" rx="12" class="box-data"/><text x="318" y="584" class="t-title">PostgreSQL 16</text><text x="318" y="606" class="t-sub">roles: owner (migrations)</text><text x="318" y="626" class="t-sub">mv_app (API, workers)</text><text x="318" y="646" class="t-sub">mv_mailserver (read-only)</text><text x="318" y="670" class="t-small">volume: pgdata</text></g>
+      <g><rect x="60" y="556" width="210" height="134" rx="12" class="box-sec"/><text x="78" y="584" class="t-title">Secrets &amp; certificates</text><text x="78" y="606" class="t-sub">stack.env (chmod 600)</text><text x="78" y="626" class="t-sub">Let's Encrypt certificates</text><text x="78" y="646" class="t-sub">DATA_ENCRYPTION_KEY</text><text x="78" y="670" class="t-small">offline copy kept by operator</text></g>
+      <g><rect x="590" y="360" width="230" height="150" rx="12" class="box-mail"/><text x="608" y="388" class="t-title">Postfix (MTA)</text><text x="608" y="410" class="t-sub">25 inbound MX</text><text x="608" y="430" class="t-sub">465 / 587 client submission</text><text x="608" y="452" class="t-sub">10587 platform relay (internal)</text><text x="608" y="472" class="t-sub">10026 auto-reply (internal)</text><text x="608" y="494" class="t-small">volumes: spool, certs</text></g>
+      <g><rect x="590" y="575" width="112" height="108" rx="12" class="box-mail"/><text x="604" y="602" class="t-title">Rspamd</text><text x="604" y="624" class="t-sub">milter 11332</text><text x="604" y="644" class="t-sub">reject ≥ 15</text><text x="604" y="664" class="t-sub">header ≥ 6</text></g>
+      <g><rect x="712" y="575" width="108" height="108" rx="12" class="box-data"/><text x="726" y="602" class="t-title">Redis 7</text><text x="726" y="624" class="t-sub">Rspamd</text><text x="726" y="644" class="t-sub">state</text></g>
+      <g><rect x="900" y="360" width="280" height="170" rx="12" class="box-mail"/><text x="918" y="388" class="t-title">Dovecot</text><text x="918" y="410" class="t-sub">993 IMAPS (public)</text><text x="918" y="430" class="t-sub">24 LMTP · 12345 SASL</text><text x="918" y="450" class="t-sub">8080 doveadm · 4190 ManageSieve</text><text x="918" y="470" class="t-sub">10993 quota policy</text><text x="918" y="492" class="t-sub">Sieve filters &amp; auto-reply</text><text x="918" y="514" class="t-small">volume: vmail (Maildir)</text></g>
+      <g><rect x="900" y="575" width="280" height="108" rx="12" class="box-sec"/><text x="918" y="602" class="t-title">Encrypted backups</text><text x="918" y="624" class="t-sub">pg_dump · vmail · stack.env</text><text x="918" y="644" class="t-sub">GPG AES-256 · SHA-256 sums</text><text x="918" y="664" class="t-sub">daily · off-site copy</text></g>
+      <!-- Third parties (outside VPS) -->
+      <g><rect x="1238" y="360" width="150" height="214" rx="12" class="box-ext"/><text x="1252" y="388" class="t-title">Third parties</text><text x="1252" y="412" class="t-sub">PesaTide</text><text x="1252" y="432" class="t-sub">Africa's Talking</text><text x="1252" y="452" class="t-sub">Google OIDC</text><text x="1252" y="472" class="t-sub">Pwned Passwords</text><text x="1252" y="492" class="t-sub">DNS · DNSBLs</text><text x="1252" y="520" class="t-small">outbound HTTPS;</text><text x="1252" y="538" class="t-small">PesaTide webhooks</text><text x="1252" y="556" class="t-small">return via Nginx</text></g>
+      <!-- Client arrows -->
+      <path d="M145 90 V164" class="ln" marker-end="url(#ar)"/><text x="152" y="110" class="lab">HTTPS 443</text>
+      <path d="M385 90 V164" class="ln" marker-end="url(#ar)"/><text x="392" y="110" class="lab">HTTPS 443</text>
+      <path d="M675 90 L700 358" class="ln" marker-end="url(#ar)" marker-start="url(#ar)"/><text x="690" y="250" class="lab">SMTP 25 · STARTTLS</text>
+      <path d="M950 90 L790 358" class="ln" marker-end="url(#ar)"/><text x="818" y="232" class="lab">SMTPS 465 · 587</text>
+      <path d="M1060 90 L1080 358" class="ln" marker-end="url(#ar)"/><text x="1078" y="232" class="lab">IMAPS 993</text>
+      <!-- Internal arrows -->
+      <path d="M165 278 V358" class="ln" marker-end="url(#ar)"/><text x="172" y="320" class="lab">HTTP :8080</text>
+      <path d="M410 278 V358" class="ln" marker-end="url(#ar)"/><text x="418" y="300" class="lab">HTTP :8088</text>
+      <path d="M270 420 H298" class="ln-em" marker-end="url(#ar-em)"/><text x="284" y="412" class="lab" text-anchor="middle">/v1</text>
+      <path d="M410 482 V554" class="ln" marker-end="url(#ar)"/><text x="418" y="522" class="lab">SQL (mv_app)</text>
+      <path d="M520 398 H588" class="ln" marker-end="url(#ar)"/><text x="554" y="390" class="lab" text-anchor="middle">relay :10587</text>
+      <path d="M588 440 H522" class="ln-dash" marker-end="url(#ar)"/><text x="554" y="458" class="lab" text-anchor="middle">bounces</text>
+      <path d="M590 498 H556 V622 H522" class="ln-dash" marker-end="url(#ar)"/><text x="560" y="600" class="lab" text-anchor="middle">lookups</text>
+      <path d="M820 410 H898" class="ln" marker-end="url(#ar)"/><text x="859" y="402" class="lab" text-anchor="middle">LMTP :24</text>
+      <path d="M898 466 H822" class="ln" marker-end="url(#ar)"/><text x="860" y="486" class="lab" text-anchor="middle">SASL :12345</text>
+      <path d="M646 510 V573" class="ln" marker-end="url(#ar)"/><text x="652" y="548" class="lab">milter</text>
+      <path d="M470 360 V346 H1110 V358" class="ln" marker-end="url(#ar)"/><text x="760" y="341" class="lab" text-anchor="middle">webmail IMAP (master user) · doveadm :8080</text>
+      <path d="M500 360 V324 H1228 V440 H1236" class="ln-out" marker-end="url(#ar-out)"/><text x="1000" y="319" class="lab" style="fill:#7c3aed" text-anchor="middle">outbound HTTPS</text>
+    </svg>
+    <figcaption><b>Figure 2. Deployment architecture.</b> Only Nginx (80/443) and the mail ports (25, 465, 587, 993) face the internet. The web application and API listen on loopback and are reached through Nginx. Every other port exists only on the private Docker network.</figcaption>
+  </figure>
+</section>
+
+<!-- ═════════════════════════════ 4 COMPONENTS ═════════════════════════════ -->
+<section class="section">
+  <h1><span class="num">4</span>Component inventory</h1>
+  <table>
+    <thead><tr><th style="width:20%">Component</th><th style="width:22%">Technology</th><th>Responsibility</th><th style="width:18%">Listens on</th></tr></thead>
+    <tbody>
+      <tr><td>Host Nginx</td><td>Nginx, Let's Encrypt</td><td>TLS, HSTS, HTTPS redirect, per-IP rate limits; routes the app, API and autoconfig hosts; blocks internal API paths.</td><td>80, 443 (public)</td></tr>
+      <tr><td>Web application</td><td>PHP 8.3, Apache, OPcache</td><td>Website, consoles, webmail, phone setup, docs; CSRF, sessions, sealed links, strict CSP; backend-for-frontend to the API.</td><td>127.0.0.1:8080</td></tr>
+      <tr><td>API &amp; workers</td><td>Rust (Axum, SQLx, Tokio)</td><td>REST API (<code>/v1</code>): auth, tenancy, billing, payments, domains, templates; delivery, webhook and maintenance workers.</td><td>127.0.0.1:8088</td></tr>
+      <tr><td>PostgreSQL</td><td>PostgreSQL 16</td><td>System of record (tenants, users, mailboxes, messages, jobs, invoices, audit log); separate roles for migrations, runtime and mail servers.</td><td>5432 (private)</td></tr>
+      <tr><td>Postfix</td><td>Postfix</td><td>Inbound MX with recipient validation, authenticated submission, platform relay for API mail, auto-reply listener.</td><td>25, 465, 587 (public); 10587, 10026 (private)</td></tr>
+      <tr><td>Rspamd</td><td>Rspamd + Redis</td><td>Spam scoring milter (reject at 15, header at 6, no greylisting).</td><td>11332 (private)</td></tr>
+      <tr><td>Dovecot</td><td>Dovecot, Pigeonhole</td><td>IMAP, LMTP delivery to Maildir, SASL for Postfix, Sieve and vacation replies, quotas, doveadm for instant revocation.</td><td>993 (public); 24, 12345, 8080, 4190, 10993 (private)</td></tr>
+      <tr><td>Backups</td><td><code>backup.sh</code>, GnuPG</td><td>Daily database, mailbox and config archive, AES-256 encrypted with checksums; pruned; copied off-site.</td><td>n/a (cron)</td></tr>
+    </tbody>
+  </table>
+  <h2>External services</h2>
+  <table>
+    <thead><tr><th style="width:20%">Service</th><th>Used for</th><th style="width:34%">Trust and failure behaviour</th></tr></thead>
+    <tbody>
+      <tr><td>PesaTide</td><td>M-Pesa STK push for invoice payment; payment status; webhooks.</td><td>Key + secret; HMAC-verified webhooks; polling reconciles. Outage: invoices stay open; operators can record bank payments.</td></tr>
+      <tr><td>Africa's Talking</td><td>Six-digit SMS verification codes.</td><td>Codes hashed at rest. Outage or no credentials: email confirmation instead.</td></tr>
+      <tr><td>Google</td><td>"Continue with Google" (OpenID Connect).</td><td>Code + PKCE, exchanged server-side; ID token validated. Outage: passwords still work.</td></tr>
+      <tr><td>Pwned Passwords</td><td>Refusing breached passwords.</td><td>k-anonymity (5-character prefix), padded; fails open.</td></tr>
+      <tr><td>Public DNS, DNSBLs</td><td>Domain verification, deliverability tools, blocklist checks.</td><td>Validating resolver; rate-limited; private addresses refused.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═════════════════════════════ 5 SYSTEM FLOWS ═════════════════════════════ -->
+<section class="wide">
+  <h1><span class="num">5</span>System flows</h1>
+  <h2 style="margin-top:0">5.1 Outbound mail: an application sends a message</h2>
+  <figure>
+    <svg viewBox="0 0 1400 730" role="img" aria-label="Outbound mail sequence diagram">
+      <g class="heads">
+        <rect x="20" y="10" width="140" height="48" rx="10" class="box-ext"/><text x="90" y="40" text-anchor="middle" class="t-title">Application</text>
+        <rect x="190" y="10" width="140" height="48" rx="10" class="box-edge"/><text x="260" y="40" text-anchor="middle" class="t-title">Nginx</text>
+        <rect x="360" y="10" width="150" height="48" rx="10" class="box-em"/><text x="435" y="40" text-anchor="middle" class="t-title">Rust API</text>
+        <rect x="540" y="10" width="150" height="48" rx="10" class="box-data"/><text x="615" y="40" text-anchor="middle" class="t-title">PostgreSQL</text>
+        <rect x="720" y="10" width="150" height="48" rx="10" class="box-em"/><text x="795" y="40" text-anchor="middle" class="t-title">Worker</text>
+        <rect x="900" y="10" width="160" height="48" rx="10" class="box-mail"/><text x="980" y="40" text-anchor="middle" class="t-title">Postfix + Rspamd</text>
+        <rect x="1090" y="10" width="140" height="48" rx="10" class="box-ext"/><text x="1160" y="40" text-anchor="middle" class="t-title">Recipient MX</text>
+        <rect x="1250" y="10" width="140" height="48" rx="10" class="box-ext"/><text x="1320" y="34" text-anchor="middle" class="t-title">Customer</text><text x="1320" y="51" text-anchor="middle" class="t-small">webhook endpoint</text>
+      </g>
+      <path d="M90 58V720M260 58V720M435 58V720M615 58V720M795 58V720M980 58V720M1160 58V720M1320 58V720" class="life"/>
+      <!-- 1 -->
+      <circle cx="40" cy="92" r="11" class="badge"/><text x="40" y="96" class="badge-t">1</text>
+      <path d="M90 100H258" class="ln" marker-end="url(#ar)"/><text x="100" y="92" class="lab">POST /v1/messages · Bearer mv_live_… · Idempotency-Key</text>
+      <!-- 2 -->
+      <circle cx="40" cy="132" r="11" class="badge"/><text x="40" y="136" class="badge-t">2</text>
+      <path d="M260 140H433" class="ln" marker-end="url(#ar)"/><text x="270" y="132" class="lab">TLS ended · 30 r/s per IP</text>
+      <!-- 3 note -->
+      <circle cx="40" cy="172" r="11" class="badge"/><text x="40" y="176" class="badge-t">3</text>
+      <rect x="355" y="156" width="330" height="56" rx="8" class="note"/>
+      <text x="365" y="176" class="t-sub">Verify key hash, scopes, IP &amp; sender-domain rules,</text>
+      <text x="365" y="198" class="t-sub">plan quota, suppression list, header injection</text>
+      <!-- 4 -->
+      <circle cx="40" cy="240" r="11" class="badge"/><text x="40" y="244" class="badge-t">4</text>
+      <path d="M435 248H613" class="ln" marker-end="url(#ar)"/><text x="445" y="240" class="lab">INSERT message + outbox job (one transaction)</text>
+      <!-- 5 -->
+      <circle cx="40" cy="280" r="11" class="badge"/><text x="40" y="284" class="badge-t">5</text>
+      <path d="M433 288H92" class="ln-dash" marker-end="url(#ar)"/><text x="120" y="280" class="lab">202 Accepted {batch_id, messages[]} (stored, not yet delivered)</text>
+      <!-- 6 -->
+      <circle cx="40" cy="330" r="11" class="badge"/><text x="40" y="334" class="badge-t">6</text>
+      <path d="M793 338H617" class="ln" marker-end="url(#ar)"/><text x="625" y="330" class="lab">claim job · FOR UPDATE SKIP LOCKED · lease</text>
+      <!-- 7 note -->
+      <circle cx="40" cy="370" r="11" class="badge"/><text x="40" y="374" class="badge-t">7</text>
+      <rect x="640" y="356" width="330" height="76" rx="8" class="note"/>
+      <text x="650" y="376" class="t-sub">Render template · build MIME</text>
+      <text x="650" y="398" class="t-sub">DKIM-sign (key decrypted with DATA_ENCRYPTION_KEY)</text>
+      <text x="650" y="420" class="t-sub">VERP return path for bounce tracking</text>
+      <!-- 8 -->
+      <circle cx="40" cy="460" r="11" class="badge"/><text x="40" y="464" class="badge-t">8</text>
+      <path d="M795 468H978" class="ln" marker-end="url(#ar)"/><text x="805" y="460" class="lab">SMTP AUTH relay :10587</text>
+      <!-- 9 -->
+      <circle cx="40" cy="500" r="11" class="badge"/><text x="40" y="504" class="badge-t">9</text>
+      <rect x="930" y="486" width="200" height="32" rx="8" class="note"/><text x="940" y="507" class="t-sub">Rspamd milter scan</text>
+      <!-- 10 -->
+      <circle cx="40" cy="546" r="11" class="badge"/><text x="40" y="550" class="badge-t">10</text>
+      <path d="M980 554H1158" class="ln" marker-end="url(#ar)"/><text x="990" y="546" class="lab">SMTP 25 · STARTTLS</text>
+      <!-- 11 -->
+      <circle cx="40" cy="586" r="11" class="badge"/><text x="40" y="590" class="badge-t">11</text>
+      <path d="M1158 594H982" class="ln-dash" marker-end="url(#ar)"/><text x="990" y="586" class="lab">250 · 4xx defer · 5xx bounce</text>
+      <!-- 12 -->
+      <circle cx="40" cy="626" r="11" class="badge"/><text x="40" y="630" class="badge-t">12</text>
+      <path d="M978 634H437" class="ln" marker-end="url(#ar)"/><text x="450" y="626" class="lab">bounce / DSN → /internal/v1 (internal token) · status → suppression list</text>
+      <!-- 13 -->
+      <circle cx="40" cy="666" r="11" class="badge"/><text x="40" y="670" class="badge-t">13</text>
+      <path d="M795 674H1318" class="ln-em" marker-end="url(#ar-em)"/><text x="805" y="666" class="lab">POST event · Mailvora-Signature (HMAC-SHA256) · back-off retries · SSRF guard</text>
+      <!-- 14 -->
+      <circle cx="40" cy="706" r="11" class="badge"/><text x="40" y="710" class="badge-t">14</text>
+      <path d="M90 714H433" class="ln" marker-end="url(#ar)"/><text x="100" y="706" class="lab">GET /v1/messages/{id} · delivery timeline</text>
+    </svg>
+    <figcaption><b>Figure 3. Outbound mail sequence.</b> The API acknowledges only after the message and its job are committed (step 4). Delivery is asynchronous, idempotent and crash-safe; bounces feed suppressions so later sends to dead addresses are refused.</figcaption>
+  </figure>
+</section>
+
+<section class="section">
+  <h2 style="margin-top:0">5.2 Inbound mail and mailbox access</h2>
+  <figure>
+    <svg viewBox="0 0 1000 720" role="img" aria-label="Inbound mail and mailbox access diagram">
+      <text x="20" y="24" class="t-zone">INBOUND DELIVERY</text>
+      <g><rect x="20" y="40" width="160" height="92" rx="12" class="box-ext"/><text x="100" y="80" text-anchor="middle" class="t-title">Sender's</text><text x="100" y="102" text-anchor="middle" class="t-title">mail server</text></g>
+      <g><rect x="230" y="34" width="230" height="104" rx="12" class="box-mail"/><text x="246" y="60" class="t-title">Postfix :25</text><text x="246" y="82" class="t-sub">no open relay</text><text x="246" y="102" class="t-sub">recipient must exist (lookup)</text><text x="246" y="122" class="t-sub">TLS offered (STARTTLS)</text></g>
+      <g><rect x="510" y="34" width="190" height="104" rx="12" class="box-mail"/><text x="526" y="60" class="t-title">Rspamd</text><text x="526" y="82" class="t-sub">score ≥ 15: reject</text><text x="526" y="102" class="t-sub">score ≥ 6: spam header</text><text x="526" y="122" class="t-sub">no greylisting</text></g>
+      <g><rect x="750" y="34" width="230" height="104" rx="12" class="box-mail"/><text x="766" y="60" class="t-title">Dovecot LMTP :24</text><text x="766" y="82" class="t-sub">Sieve filters · auto-reply</text><text x="766" y="102" class="t-sub">quota check (:10993)</text><text x="766" y="122" class="t-sub">→ Maildir (vmail volume)</text></g>
+      <path d="M180 86H228" class="ln" marker-end="url(#ar)"/><path d="M460 86H508" class="ln" marker-end="url(#ar)"/><path d="M700 86H748" class="ln" marker-end="url(#ar)"/>
+      <path d="M300 138V196H558" class="ln-dash" marker-end="url(#ar)"/><text x="430" y="190" class="lab" text-anchor="middle">recipient lookup</text>
+      <path d="M930 138V196H762" class="ln-dash" marker-end="url(#ar)"/><text x="850" y="190" class="lab" text-anchor="middle">passdb lookup</text>
+      <g><rect x="560" y="174" width="200" height="44" rx="10" class="box-data"/><text x="660" y="193" text-anchor="middle" class="t-sub">PostgreSQL (read-only</text><text x="660" y="210" text-anchor="middle" class="t-sub">role mv_mailserver)</text></g>
+      <path d="M800 138V156H400V140" class="ln" marker-end="url(#ar)"/><text x="600" y="152" class="lab" text-anchor="middle">auto-reply → Postfix :10026</text>
+
+      <text x="20" y="262" class="t-zone">MAILBOX ACCESS</text>
+      <g><rect x="20" y="280" width="200" height="86" rx="12" class="box-ext"/><text x="120" y="314" text-anchor="middle" class="t-title">Phone / desktop</text><text x="120" y="336" text-anchor="middle" class="t-title">mail app</text></g>
+      <g><rect x="20" y="420" width="200" height="86" rx="12" class="box-ext"/><text x="120" y="456" text-anchor="middle" class="t-title">Browser</text><text x="120" y="478" text-anchor="middle" class="t-sub">webmail</text></g>
+      <g><rect x="20" y="560" width="200" height="86" rx="12" class="box-em"/><text x="120" y="594" text-anchor="middle" class="t-title">Admin / ICT</text><text x="120" y="616" text-anchor="middle" class="t-sub">disables mailbox</text></g>
+      <g><rect x="740" y="300" width="240" height="190" rx="12" class="box-mail"/><text x="756" y="328" class="t-title">Dovecot</text><text x="756" y="352" class="t-sub">IMAPS 993 (TLS 1.2+)</text><text x="756" y="374" class="t-sub">passdb: active mailboxes only</text><text x="756" y="396" class="t-sub">Argon2id password check</text><text x="756" y="418" class="t-sub">plaintext auth disabled</text><text x="756" y="440" class="t-sub">master user for webmail</text><text x="756" y="470" class="t-small">doveadm :8080 kicks sessions</text></g>
+      <g><rect x="440" y="280" width="220" height="86" rx="12" class="box-mail"/><text x="456" y="306" class="t-title">Postfix 465 / 587</text><text x="456" y="328" class="t-sub">SASL via Dovecot :12345</text><text x="456" y="350" class="t-sub">sender must own address</text></g>
+      <g><rect x="300" y="420" width="170" height="86" rx="12" class="box-em"/><text x="316" y="448" class="t-title">Web app</text><text x="316" y="470" class="t-sub">mailbox session</text><text x="316" y="490" class="t-sub">sandboxed reader</text></g>
+      <g><rect x="510" y="420" width="170" height="86" rx="12" class="box-em"/><text x="526" y="448" class="t-title">API /v1/webmail</text><text x="526" y="470" class="t-sub">60 sends / hour</text><text x="526" y="490" class="t-sub">per mailbox</text></g>
+      <g><rect x="300" y="560" width="380" height="86" rx="12" class="box-em"/><text x="316" y="588" class="t-title">API: disable mailbox</text><text x="316" y="610" class="t-sub">status = disabled (passdb stops matching) · doveadm kick</text><text x="316" y="630" class="t-sub">audit log entry · webmail session revoked</text></g>
+      <path d="M220 312H438" class="ln" marker-end="url(#ar)"/><text x="330" y="304" class="lab" text-anchor="middle">SMTPS 465 / 587</text>
+      <path d="M220 340 C480 380 560 380 738 380" class="ln" marker-end="url(#ar)"/><text x="470" y="392" class="lab" text-anchor="middle">IMAPS 993</text>
+      <path d="M220 463H298" class="ln" marker-end="url(#ar)"/><text x="259" y="455" class="lab" text-anchor="middle">HTTPS</text>
+      <path d="M470 463H508" class="ln-em" marker-end="url(#ar-em)"/>
+      <path d="M680 463H738" class="ln" marker-end="url(#ar)"/><text x="709" y="455" class="lab" text-anchor="middle">IMAP</text>
+      <path d="M220 603H298" class="ln" marker-end="url(#ar)"/>
+      <path d="M680 603H860V492" class="ln-red" marker-end="url(#ar-red)"/><text x="770" y="595" class="lab lab-red" text-anchor="middle">immediate revocation</text>
+      <path d="M660 323H738" class="ln-dash" marker-end="url(#ar)"/><text x="700" y="315" class="lab" text-anchor="middle">SASL</text>
+    </svg>
+    <figcaption><b>Figure 4. Inbound delivery and mailbox access.</b> Postfix rejects mail for unknown recipients during the SMTP dialogue (no backscatter). Phones, webmail and Postfix submission all authenticate against the same Dovecot password database, so disabling a mailbox ends every access path at once.</figcaption>
+  </figure>
+  <h3>Web request flow (browser → web application → API)</h3>
+  <ol>
+    <li>The browser connects to <code>app.example.com</code> over TLS; Nginx applies rate limits and forwards to the web application on loopback.</li>
+    <li>The web application starts the session, opens any sealed <code>/app?ref=…</code> link with the session's key, and routes the real path.</li>
+    <li>CSRF, authentication and permission middleware run; the controller calls the API at its private address, presenting the API session cookie kept in the PHP session (never in the browser).</li>
+    <li>The response is rendered; every private address in it is sealed before it is sent, and secrets are shown once.</li>
+  </ol>
+</section>
+
+<section class="section">
+  <h2 style="margin-top:0">5.3 Invoice payment with M-Pesa (PesaTide)</h2>
+  <figure>
+    <svg viewBox="0 0 1000 560" role="img" aria-label="M-Pesa payment sequence">
+      <rect x="10" y="10" width="160" height="46" rx="10" class="box-ext"/><text x="90" y="39" text-anchor="middle" class="t-title">Billing admin</text>
+      <rect x="215" y="10" width="160" height="46" rx="10" class="box-em"/><text x="295" y="39" text-anchor="middle" class="t-title">Web app</text>
+      <rect x="420" y="10" width="160" height="46" rx="10" class="box-em"/><text x="500" y="39" text-anchor="middle" class="t-title">Rust API</text>
+      <rect x="625" y="10" width="160" height="46" rx="10" class="box-ext"/><text x="705" y="39" text-anchor="middle" class="t-title">PesaTide</text>
+      <rect x="830" y="10" width="160" height="46" rx="10" class="box-ext"/><text x="910" y="39" text-anchor="middle" class="t-title">Payer's phone</text>
+      <path d="M90 56V550M295 56V550M500 56V550M705 56V550M910 56V550" class="life"/>
+      <circle cx="22" cy="86" r="11" class="badge"/><text x="22" y="90" class="badge-t">1</text>
+      <path d="M90 94H293" class="ln" marker-end="url(#ar)"/><text x="102" y="86" class="lab">Pay invoice · Safaricom number</text>
+      <circle cx="22" cy="130" r="11" class="badge"/><text x="22" y="134" class="badge-t">2</text>
+      <path d="M295 138H498" class="ln" marker-end="url(#ar)"/><text x="304" y="130" class="lab">POST pay · billing:manage · CSRF</text>
+      <circle cx="22" cy="174" r="11" class="badge"/><text x="22" y="178" class="badge-t">3</text>
+      <path d="M500 192H703" class="ln" marker-end="url(#ar)"/><text x="510" y="166" class="lab">STK push · key + secret</text><text x="510" y="182" class="lab">Idempotency-Key · amount (KES)</text>
+      <circle cx="22" cy="222" r="11" class="badge"/><text x="22" y="226" class="badge-t">4</text>
+      <path d="M705 230H908" class="ln" marker-end="url(#ar)"/><text x="716" y="222" class="lab">M-Pesa PIN prompt</text>
+      <circle cx="22" cy="266" r="11" class="badge"/><text x="22" y="270" class="badge-t">5</text>
+      <path d="M908 274H707" class="ln-dash" marker-end="url(#ar)"/><text x="720" y="266" class="lab">payer approves with PIN</text>
+      <circle cx="22" cy="310" r="11" class="badge"/><text x="22" y="314" class="badge-t">6</text>
+      <path d="M703 326H502" class="ln-em" marker-end="url(#ar-em)"/><text x="512" y="302" class="lab">webhook · X-PesaTide-Signature</text><text x="512" y="318" class="lab">(HMAC-SHA256 of raw body)</text>
+      <circle cx="22" cy="356" r="11" class="badge"/><text x="22" y="360" class="badge-t">7</text>
+      <rect x="380" y="340" width="300" height="74" rx="8" class="note"/><text x="392" y="360" class="t-sub">Verify signature · idempotent apply</text><text x="392" y="380" class="t-sub">final states never overwritten</text><text x="392" y="400" class="t-sub">invoice paid + receipt · audit log</text>
+      <circle cx="22" cy="444" r="11" class="badge"/><text x="22" y="448" class="badge-t">8</text>
+      <path d="M295 452H498" class="ln-dash" marker-end="url(#ar)"/><text x="304" y="444" class="lab">poll status every 4 s</text>
+      <path d="M500 470H703" class="ln-dash" marker-end="url(#ar)"/><text x="510" y="464" class="lab">reconcile if still pending</text>
+      <circle cx="22" cy="508" r="11" class="badge"/><text x="22" y="512" class="badge-t">9</text>
+      <path d="M293 516H92" class="ln" marker-end="url(#ar)"/><text x="102" y="508" class="lab">Paid · M-Pesa receipt shown</text>
+    </svg>
+    <figcaption><b>Figure 5. Invoice payment.</b> The webhook is the primary confirmation; polling reconciles a missed webhook. A request expires after 10 minutes and only one may be in progress per invoice.</figcaption>
+  </figure>
+
+  <h2>5.4 Account sign-up and verification</h2>
+  <figure>
+    <svg viewBox="0 0 1000 470" role="img" aria-label="Account verification flow">
+      <text x="20" y="22" class="t-zone">A · USERNAME, PHONE AND PASSWORD</text>
+      <g><rect x="20" y="36" width="170" height="90" rx="12" class="box-em"/><text x="34" y="62" class="t-title">Register</text><text x="34" y="84" class="t-sub">username · phone</text><text x="34" y="104" class="t-sub">email (invoices)</text></g>
+      <g><rect x="225" y="36" width="190" height="90" rx="12" class="box-sec"/><text x="239" y="62" class="t-title">Password checks</text><text x="239" y="84" class="t-sub">≥ 12 chars · no identity</text><text x="239" y="104" class="t-sub">Pwned Passwords (k-anon.)</text></g>
+      <g><rect x="450" y="36" width="160" height="90" rx="12" class="box-em"/><text x="464" y="62" class="t-title">Account</text><text x="464" y="84" class="t-sub">created, limited</text><text x="464" y="104" class="t-sub">until verified</text></g>
+      <g><rect x="645" y="36" width="170" height="90" rx="12" class="box-ext"/><text x="659" y="62" class="t-title">SMS code</text><text x="659" y="84" class="t-sub">via Africa's Talking</text><text x="659" y="104" class="t-sub">6 digits</text></g>
+      <g><rect x="850" y="36" width="130" height="90" rx="12" class="box-em"/><text x="864" y="62" class="t-title">Verified</text><text x="864" y="84" class="t-sub">full access</text></g>
+      <path d="M190 81H223" class="ln" marker-end="url(#ar)"/><path d="M415 81H448" class="ln" marker-end="url(#ar)"/><path d="M610 81H643" class="ln" marker-end="url(#ar)"/><path d="M815 81H848" class="ln" marker-end="url(#ar)"/>
+      <rect x="450" y="146" width="530" height="58" rx="8" class="note"/><text x="462" y="168" class="t-sub">Code stored as SHA-256 hash · valid 10 minutes · 5 attempts · superseded by a</text><text x="462" y="190" class="t-sub">new code · rate-limited per user (5/h) and per number (8/h)</text>
+
+      <text x="20" y="252" class="t-zone">B · CONTINUE WITH GOOGLE (OPENID CONNECT)</text>
+      <g><rect x="20" y="266" width="170" height="96" rx="12" class="box-em"/><text x="34" y="292" class="t-title">Start</text><text x="34" y="314" class="t-sub">state · nonce ·</text><text x="34" y="334" class="t-sub">PKCE S256 in session</text><text x="34" y="352" class="t-small">valid 10 minutes</text></g>
+      <g><rect x="225" y="266" width="170" height="96" rx="12" class="box-ext"/><text x="239" y="292" class="t-title">Google</text><text x="239" y="314" class="t-sub">consent screen</text><text x="239" y="334" class="t-sub">returns code</text></g>
+      <g><rect x="430" y="266" width="190" height="96" rx="12" class="box-em"/><text x="444" y="292" class="t-title">Callback</text><text x="444" y="314" class="t-sub">state matches</text><text x="444" y="334" class="t-sub">exact redirect URI</text></g>
+      <g><rect x="655" y="266" width="160" height="96" rx="12" class="box-sec"/><text x="669" y="292" class="t-title">API exchange</text><text x="669" y="314" class="t-sub">code + secret +</text><text x="669" y="334" class="t-sub">verifier (server)</text></g>
+      <g><rect x="850" y="266" width="130" height="96" rx="12" class="box-em"/><text x="864" y="292" class="t-title">Session</text><text x="864" y="314" class="t-sub">link or create</text><text x="864" y="334" class="t-sub">MFA if enabled</text></g>
+      <path d="M190 314H223" class="ln" marker-end="url(#ar)"/><path d="M395 314H428" class="ln" marker-end="url(#ar)"/><path d="M620 314H653" class="ln" marker-end="url(#ar)"/><path d="M815 314H848" class="ln" marker-end="url(#ar)"/>
+      <rect x="430" y="382" width="550" height="58" rx="8" class="note"/><text x="442" y="404" class="t-sub">ID token checks (OIDC Core §3.1.3.7): issuer, audience, expiry, nonce,</text><text x="442" y="426" class="t-sub">email_verified · linked by Google subject first, then verified email</text>
+    </svg>
+    <figcaption><b>Figure 6. Sign-up and verification.</b> No mail provider is forced on users: phone verification is the default, Google is optional, and email is kept only as a contact for invoices.</figcaption>
+  </figure>
+</section>
+
+<!-- ═════════════════════════════ 6 SECURITY ARCHITECTURE ═════════════════════════════ -->
+<section class="section">
+  <h1><span class="num">6</span>Security architecture</h1>
+  <h2 style="margin-top:0">6.1 Security flow of a browser request</h2>
+  <figure>
+    <svg viewBox="0 0 1000 800" role="img" aria-label="Request security pipeline">
+      <rect x="10" y="10" width="140" height="150" rx="10" class="box-edge"/><text x="80" y="80" text-anchor="middle" class="t-title">Edge</text><text x="80" y="102" text-anchor="middle" class="t-small">Nginx</text>
+      <rect x="10" y="170" width="140" height="390" rx="10" class="box-em"/><text x="80" y="360" text-anchor="middle" class="t-title">Web</text><text x="80" y="382" text-anchor="middle" class="t-title">application</text>
+      <rect x="10" y="570" width="140" height="150" rx="10" class="box-data"/><text x="80" y="640" text-anchor="middle" class="t-title">API</text><text x="80" y="662" text-anchor="middle" class="t-small">Rust</text>
+      <rect x="10" y="730" width="140" height="60" rx="10" class="box-em"/><text x="80" y="766" text-anchor="middle" class="t-title">Response</text>
+      <!-- steps -->
+      <g font-size="12">
+        <g><rect x="170" y="14" width="820" height="66" rx="10" class="box"/><circle cx="200" cy="47" r="15" class="badge"/><text x="200" y="52" class="badge-t">1</text><text x="228" y="40" class="t-title">Firewall &amp; TLS</text><text x="228" y="62" class="t-sub">ufw allow-list · TLS 1.2 / 1.3 only · HSTS for two years · HTTP redirected to HTTPS</text></g>
+        <g><rect x="170" y="90" width="820" height="66" rx="10" class="box"/><circle cx="200" cy="123" r="15" class="badge"/><text x="200" y="128" class="badge-t">2</text><text x="228" y="116" class="t-title">Rate limiting</text><text x="228" y="138" class="t-sub">per IP: web 20 r/s · sign-in pages 5 r/min · API 30 r/s; app limits on codes, tools, sign-ups, payments</text></g>
+        <g><rect x="170" y="174" width="820" height="66" rx="10" class="box"/><circle cx="200" cy="207" r="15" class="badge"/><text x="200" y="212" class="badge-t">3</text><text x="228" y="200" class="t-title">Security headers</text><text x="228" y="222" class="t-sub">strict CSP with no inline scripts · frame-ancestors 'none' · nosniff · strict referrer policy</text></g>
+        <g><rect x="170" y="250" width="820" height="66" rx="10" class="box"/><circle cx="200" cy="283" r="15" class="badge"/><text x="200" y="288" class="badge-t">4</text><text x="228" y="276" class="t-title">Session</text><text x="228" y="298" class="t-sub">__Host- cookie · Secure · HttpOnly · SameSite · idle timeout 120 min · ID rotated every 15 min</text></g>
+        <g><rect x="170" y="326" width="820" height="66" rx="10" class="box-sec"/><circle cx="200" cy="359" r="15" class="badge"/><text x="200" y="364" class="badge-t">5</text><text x="228" y="352" class="t-title">Sealed link</text><text x="228" y="374" class="t-sub">/app?ref= token = AES-256-GCM(path) under a per-session key · edited, expired or foreign links refused</text></g>
+        <g><rect x="170" y="402" width="820" height="66" rx="10" class="box"/><circle cx="200" cy="435" r="15" class="badge"/><text x="200" y="440" class="badge-t">6</text><text x="228" y="428" class="t-title">CSRF</text><text x="228" y="450" class="t-sub">synchronizer token on every state-changing form · API double-submit header check</text></g>
+        <g><rect x="170" y="478" width="820" height="66" rx="10" class="box"/><circle cx="200" cy="511" r="15" class="badge"/><text x="200" y="516" class="badge-t">7</text><text x="228" y="504" class="t-title">Input validation</text><text x="228" y="526" class="t-sub">explicit request fields · validators (domains, addresses, phone numbers) · header-injection checks</text></g>
+        <g><rect x="170" y="574" width="820" height="66" rx="10" class="box"/><circle cx="200" cy="607" r="15" class="badge"/><text x="200" y="612" class="badge-t">8</text><text x="228" y="600" class="t-title">Authentication</text><text x="228" y="622" class="t-sub">session or API key verified by the API · TOTP MFA · operators must enrol MFA in production</text></g>
+        <g><rect x="170" y="650" width="820" height="66" rx="10" class="box"/><circle cx="200" cy="683" r="15" class="badge"/><text x="200" y="688" class="badge-t">9</text><text x="228" y="676" class="t-title">Authorisation &amp; tenancy</text><text x="228" y="698" class="t-sub">role permissions · organisation taken from the session, never from input · parameterised SQL · audit log</text></g>
+        <g><rect x="170" y="726" width="820" height="66" rx="10" class="box"/><circle cx="200" cy="759" r="15" class="badge"/><text x="200" y="764" class="badge-t">10</text><text x="228" y="752" class="t-title">Safe response</text><text x="228" y="774" class="t-sub">output escaped · secrets shown once · private addresses sealed · Cache-Control: no-store</text></g>
+      </g>
+    </svg>
+    <figcaption><b>Figure 7. Request security pipeline.</b> A request must pass every layer in order; failure at any step stops it with a safe, generic response. Layer 5 (sealed links) is defence in depth: layer 9 is the control that actually prevents cross-tenant access.</figcaption>
+  </figure>
+  <h3>What a refused request receives</h3>
+  <table>
+    <thead><tr><th style="width:30%">Layer</th><th>Response</th></tr></thead>
+    <tbody>
+      <tr><td>Rate limit exceeded</td><td><code>429 Too many requests</code> with a plain message; nothing about the account is revealed.</td></tr>
+      <tr><td>Sealed link edited or expired</td><td>Redirect to the area's home with "That link has expired or was changed"; a typed record address is refused the same way; a direct form post gets <code>404</code>.</td></tr>
+      <tr><td>CSRF token missing or wrong</td><td><code>419 Page expired</code>; the form can be submitted again from a fresh page.</td></tr>
+      <tr><td>Not signed in</td><td>Redirect to sign-in with a sealed return address; API: <code>401</code> with a stable error code.</td></tr>
+      <tr><td>Role lacks permission</td><td><code>403</code> explaining which role is needed; the operator console answers <code>404</code> so it does not reveal itself.</td></tr>
+      <tr><td>Record in another tenant</td><td><code>404 Not found</code>, identical to a record that does not exist.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="wide">
+  <h2 style="margin-top:0">6.2 Trust boundaries</h2>
+  <figure class="fit" style="--fit:98mm">
+    <svg viewBox="0 0 1400 660" role="img" aria-label="Trust boundary diagram">
+      <rect x="10" y="40" width="250" height="610" rx="14" fill="#f4f5f7" stroke="#c9ced6"/><text x="135" y="28" text-anchor="middle" class="t-zone">INTERNET (UNTRUSTED)</text>
+      <rect x="300" y="40" width="230" height="300" rx="14" fill="#fff8ec" stroke="#e5c48a"/><text x="415" y="28" text-anchor="middle" class="t-zone">EDGE</text>
+      <rect x="570" y="40" width="400" height="300" rx="14" fill="#eef8f3" stroke="#a9d8c3"/><text x="770" y="28" text-anchor="middle" class="t-zone">APPLICATION</text>
+      <rect x="1010" y="40" width="380" height="610" rx="14" fill="#f1f2ff" stroke="#b9bcf0"/><text x="1200" y="28" text-anchor="middle" class="t-zone">DATA AT REST</text>
+      <rect x="300" y="380" width="670" height="270" rx="14" fill="#edf6fd" stroke="#a8cfea"/><text x="635" y="406" text-anchor="middle" class="t-zone">MAIL TIER (INTERNET-FACING ON 25, 465, 587, 993)</text>
+      <!-- internet actors -->
+      <g><rect x="30" y="70" width="210" height="60" rx="10" class="box-ext"/><text x="135" y="106" text-anchor="middle" class="t-title">Browsers</text></g>
+      <g><rect x="30" y="150" width="210" height="60" rx="10" class="box-ext"/><text x="135" y="186" text-anchor="middle" class="t-title">API clients</text></g>
+      <g><rect x="30" y="230" width="210" height="80" rx="10" class="box-ext"/><text x="135" y="262" text-anchor="middle" class="t-title">Third parties</text><text x="135" y="286" text-anchor="middle" class="t-small">PesaTide · AT · Google</text></g>
+      <g><rect x="30" y="430" width="210" height="60" rx="10" class="box-ext"/><text x="135" y="466" text-anchor="middle" class="t-title">Mail apps</text></g>
+      <g><rect x="30" y="520" width="210" height="60" rx="10" class="box-ext"/><text x="135" y="556" text-anchor="middle" class="t-title">Remote MTAs</text></g>
+      <!-- components -->
+      <g><rect x="320" y="120" width="190" height="120" rx="12" class="box-edge"/><text x="415" y="168" text-anchor="middle" class="t-title">Nginx</text><text x="415" y="192" text-anchor="middle" class="t-sub">TLS · rate limits</text><text x="415" y="212" text-anchor="middle" class="t-sub">path blocking</text></g>
+      <g><rect x="595" y="80" width="160" height="100" rx="12" class="box-em"/><text x="675" y="122" text-anchor="middle" class="t-title">Web app</text><text x="675" y="146" text-anchor="middle" class="t-sub">BFF · sessions</text></g>
+      <g><rect x="790" y="80" width="160" height="100" rx="12" class="box-em"/><text x="870" y="122" text-anchor="middle" class="t-title">Rust API</text><text x="870" y="146" text-anchor="middle" class="t-sub">& workers</text></g>
+      <g><rect x="595" y="210" width="355" height="100" rx="12" class="box-em" style="fill:#fff"/><text x="772" y="246" text-anchor="middle" class="t-title">Outbound integrations</text><text x="772" y="270" text-anchor="middle" class="t-sub">SSRF-guarded HTTP client · no redirects</text><text x="772" y="290" text-anchor="middle" class="t-sub">private / reserved addresses refused</text></g>
+      <g><rect x="330" y="430" width="180" height="110" rx="12" class="box-mail"/><text x="420" y="466" text-anchor="middle" class="t-title">Postfix</text><text x="420" y="490" text-anchor="middle" class="t-sub">25 · 465 · 587</text><text x="420" y="510" text-anchor="middle" class="t-sub">no open relay</text></g>
+      <g><rect x="560" y="430" width="160" height="110" rx="12" class="box-mail"/><text x="640" y="476" text-anchor="middle" class="t-title">Rspamd</text><text x="640" y="500" text-anchor="middle" class="t-sub">spam scoring</text></g>
+      <g><rect x="770" y="430" width="180" height="110" rx="12" class="box-mail"/><text x="860" y="466" text-anchor="middle" class="t-title">Dovecot</text><text x="860" y="490" text-anchor="middle" class="t-sub">993 · Argon2id</text><text x="860" y="510" text-anchor="middle" class="t-sub">TLS only</text></g>
+      <g><rect x="1040" y="80" width="320" height="120" rx="12" class="box-data"/><text x="1200" y="116" text-anchor="middle" class="t-title">PostgreSQL</text><text x="1200" y="140" text-anchor="middle" class="t-sub">role separation · tenant-scoped queries</text><text x="1200" y="160" text-anchor="middle" class="t-sub">secrets encrypted (AES-256-GCM)</text><text x="1200" y="180" text-anchor="middle" class="t-sub">tokens &amp; codes stored as hashes</text></g>
+      <g><rect x="1040" y="230" width="320" height="100" rx="12" class="box-data"/><text x="1200" y="266" text-anchor="middle" class="t-title">Secrets</text><text x="1200" y="290" text-anchor="middle" class="t-sub">stack.env chmod 600 · outside web root</text><text x="1200" y="310" text-anchor="middle" class="t-sub">DATA_ENCRYPTION_KEY offline backup</text></g>
+      <g><rect x="1040" y="430" width="320" height="100" rx="12" class="box-data"/><text x="1200" y="466" text-anchor="middle" class="t-title">Mail storage (Maildir)</text><text x="1200" y="490" text-anchor="middle" class="t-sub">per-mailbox quota · vmail volume</text></g>
+      <g><rect x="1040" y="550" width="320" height="80" rx="12" class="box-data"/><text x="1200" y="584" text-anchor="middle" class="t-title">Backups</text><text x="1200" y="606" text-anchor="middle" class="t-sub">GPG AES-256 · off-site · restore drill</text></g>
+      <!-- flows -->
+      <path d="M240 100H318" class="ln" marker-end="url(#ar)"/><path d="M240 180H318" class="ln" marker-end="url(#ar)"/><path d="M240 270 C290 270 290 220 318 220" class="ln" marker-end="url(#ar)"/>
+      <path d="M510 150H593" class="ln" marker-end="url(#ar)"/><path d="M755 130H788" class="ln-em" marker-end="url(#ar-em)"/><path d="M510 200 C690 200 700 160 788 160" class="ln" marker-end="url(#ar)"/>
+      <path d="M950 130H1038" class="ln" marker-end="url(#ar)"/><path d="M870 180V208" class="ln" marker-end="url(#ar)"/>
+      <path d="M595 260 C280 260 280 270 242 270" class="ln-out" marker-end="url(#ar-out)"/>
+      <path d="M240 460H328" class="ln" marker-end="url(#ar)"/><path d="M240 550 C290 550 290 500 328 500" class="ln" marker-end="url(#ar)"/>
+      <path d="M240 470 C500 600 700 600 860 542" class="ln" marker-end="url(#ar)"/>
+      <path d="M510 485H558" class="ln" marker-end="url(#ar)"/><path d="M720 485H768" class="ln" marker-end="url(#ar)"/><path d="M950 480H1038" class="ln" marker-end="url(#ar)"/>
+      <path d="M870 180 C980 300 980 380 900 428" class="ln-dash" marker-end="url(#ar)"/>
+      <!-- trust boundaries -->
+      <path d="M280 40V650" class="tb"/><text x="286" y="64" class="lab lab-red">TB1</text>
+      <path d="M550 40V340" class="tb"/><text x="556" y="64" class="lab lab-red">TB2</text>
+      <path d="M990 40V650" class="tb"/><text x="996" y="64" class="lab lab-red">TB3</text>
+      <path d="M300 360H970" class="tb"/><text x="310" y="374" class="lab lab-red">TB4</text>
+      <text x="252" y="300" class="lab lab-red">TB5</text>
+    </svg>
+    <figcaption><b>Figure 8. Trust boundaries.</b> Red dashed lines are the points where data crosses from a less-trusted to a more-trusted zone; every crossing has the controls listed below.</figcaption>
+  </figure>
+  <table>
+    <thead><tr><th style="width:7%">ID</th><th style="width:22%">Boundary</th><th>Controls at the crossing</th></tr></thead>
+    <tbody>
+      <tr><td>TB1</td><td>Internet → edge and mail tier</td><td>Firewall allow-list; TLS 1.2+ everywhere; HSTS; per-IP rate limits; Postfix recipient validation and relay restrictions; Rspamd scoring; Dovecot TLS-only authentication.</td></tr>
+      <tr><td>TB2</td><td>Edge → application</td><td>Loopback-only listeners; internal API paths blocked at Nginx; CSP, CSRF, sessions, sealed links, input validation; API keys and sessions verified on every call.</td></tr>
+      <tr><td>TB3</td><td>Application → data</td><td>Separate database roles (migrations, runtime, read-only mail servers); parameterised SQL; tenant scoping; secrets encrypted with AES-256-GCM; tokens and codes hashed; backups encrypted.</td></tr>
+      <tr><td>TB4</td><td>Mail tier ↔ application</td><td>Platform relay only for the authenticated relay identity; auto-reply listener only from the private network; bounce ingestion requires the internal API token; mail servers read the database through a read-only role.</td></tr>
+      <tr><td>TB5</td><td>Application ↔ third parties</td><td>Outbound: SSRF-guarded client (public addresses only, no redirects, DNS-rebinding safe). Inbound: PesaTide webhooks verified by HMAC-SHA256; Google ID tokens validated; credentials only in <code>stack.env</code>.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="section">
+  <h2 style="margin-top:0">6.3 Defence in depth</h2>
+  <figure>
+    <svg viewBox="0 0 1000 560" role="img" aria-label="Defence in depth layers">
+      <rect x="10" y="10" width="980" height="540" rx="26" fill="#fff6e5" stroke="#c27a12" stroke-width="1.6"/>
+      <text x="34" y="42" class="t-title">1 · Perimeter</text><text x="34" y="64" class="t-sub">ufw allow-list (22, 25, 80, 443, 465, 587, 993) · TLS 1.2/1.3 · HSTS · Nginx rate limits · SSH keys only, no root login</text>
+      <rect x="60" y="86" width="880" height="444" rx="22" fill="#eef4fb" stroke="#1f7fbf" stroke-width="1.6"/>
+      <text x="84" y="116" class="t-title">2 · Host &amp; containers</text><text x="84" y="138" class="t-sub">unattended security upgrades · no-new-privileges · dropped capabilities · loopback-only app ports · bounded logs</text>
+      <rect x="110" y="160" width="780" height="350" rx="20" fill="#eef8f3" stroke="#0b7a5c" stroke-width="1.6"/>
+      <text x="134" y="190" class="t-title">3 · Application</text><text x="134" y="212" class="t-sub">strict CSP · CSRF · sealed links · input validation · output escaping · sandboxed mail reader · SSRF guard</text>
+      <rect x="160" y="234" width="680" height="256" rx="18" fill="#fdecef" stroke="#c0263d" stroke-width="1.6"/>
+      <text x="184" y="264" class="t-title">4 · Identity &amp; access</text><text x="184" y="286" class="t-sub">Argon2id · breached-password screening · TOTP MFA · roles · short-lived single-use tokens · lockouts</text>
+      <rect x="210" y="308" width="580" height="162" rx="16" fill="#eef0ff" stroke="#5b5fd6" stroke-width="1.6"/>
+      <text x="234" y="338" class="t-title">5 · Data</text><text x="234" y="360" class="t-sub">tenant-scoped queries · role-separated database · AES-256-GCM secrets</text><text x="234" y="380" class="t-sub">hashed tokens · 30-day content retention · encrypted backups</text>
+      <rect x="330" y="398" width="340" height="56" rx="12" fill="url(#g-core)"/><text x="500" y="432" text-anchor="middle" class="t-title t-white">Customer data &amp; mail</text>
+    </svg>
+    <figcaption><b>Figure 9. Defence in depth.</b> An attacker must defeat several independent layers to reach customer data; no single control is relied upon.</figcaption>
+  </figure>
+  <h2>6.4 Tenant isolation</h2>
+  <p>Every organisation-owned row carries its organisation identifier, enforced by composite foreign keys. The API derives the organisation from the authenticated session or API key and adds it to every query; request bodies and URLs never choose the tenant. Mailbox users are confined to their own mailbox, and the webmail session cannot call console endpoints. Integration tests attempt cross-tenant access for every resource type and must receive "not found".</p>
+</section>
+
+<!-- ═════════════════════════════ 7 SECURITY CONTROLS ═════════════════════════════ -->
+<section class="section">
+  <h1><span class="num">7</span>Security controls</h1>
+  <h2 style="margin-top:0">7.1 Controls matrix</h2>
+  <table>
+    <thead><tr><th style="width:17%">Domain</th><th>Control</th><th style="width:24%">Reference</th></tr></thead>
+    <tbody>
+      <tr><td>Passwords</td><td>Argon2id (m = 19 MiB, t = 2, p = 1) for console and mailbox passwords; minimum 12 characters; no identity substrings; common and breached passwords refused.</td><td>NIST SP 800-63B; ASVS V6</td></tr>
+      <tr><td>MFA</td><td>TOTP for console accounts; platform operators refused in production until enrolled; owners without MFA flagged to operators.</td><td>ASVS V6; CISA</td></tr>
+      <tr><td>Tokens</td><td>Reset 1 h, activation 7 days, phone codes 10 min; stored as SHA-256 hashes; single use; superseded by newer tokens; purged daily.</td><td>ASVS V7</td></tr>
+      <tr><td>Sessions</td><td>Server-side sessions; <code>__Host-</code> Secure HttpOnly SameSite cookie; idle expiry; ID rotation; password change or reset revokes other sessions and IMAP connections.</td><td>ASVS V7</td></tr>
+      <tr><td>Authorisation</td><td>Deny by default; role permissions; organisation from the session; last owner protected; no self-promotion; operator console hidden from others.</td><td>OWASP API1/API5</td></tr>
+      <tr><td>Web</td><td>Strict CSP without inline script; CSRF tokens; output escaping; sealed links; secrets displayed once; received mail rendered in a sandboxed iframe with its own CSP.</td><td>ASVS V3, V50</td></tr>
+      <tr><td>API</td><td>Scoped API keys (hash stored, prefix indexed), IP and sender-domain restrictions, expiry and rotation; idempotency keys; body size limits; per-key rate limits.</td><td>OWASP API2/API4</td></tr>
+      <tr><td>SSRF</td><td>Webhook, MTA-STS and port-check requests resolve DNS at connect time and refuse loopback, private, link-local, CGNAT and other reserved ranges; no redirects.</td><td>OWASP API7</td></tr>
+      <tr><td>Email</td><td>No open relay; DKIM on all outbound mail; SPF/DMARC guidance per domain; suppression of bounces and complaints; RFC 8058 one-click unsubscribe; per-mailbox webmail send limit.</td><td>M3AAWG practices</td></tr>
+      <tr><td>Payments</td><td>Webhook HMAC-SHA256 verification over the raw body; idempotent application; final states immutable; amounts in whole KES; audit trail.</td><td>PCI-style hygiene (no card data)</td></tr>
+      <tr><td>Infrastructure</td><td>Only required ports public; containers without new privileges or extra capabilities; secrets outside source and web root; security.txt (RFC 9116).</td><td>CIS benchmarks</td></tr>
+      <tr><td>Logging</td><td>Audit log of actor, action, target and IP; passwords, tokens and message content never logged; request IDs correlate web and API logs.</td><td>ASVS V16</td></tr>
+    </tbody>
+  </table>
+  <h2>7.2 Secrets and key management</h2>
+  <table>
+    <thead><tr><th style="width:26%">Secret</th><th>Protects</th><th style="width:30%">Storage and rotation</th></tr></thead>
+    <tbody>
+      <tr><td><code>DATA_ENCRYPTION_KEY</code></td><td>DKIM private keys and webhook signing secrets (AES-256-GCM).</td><td><code>stack.env</code>; offline copy; rotation requires re-encryption.</td></tr>
+      <tr><td>Database passwords</td><td>Owner, runtime (<code>mv_app</code>) and read-only mail-server roles.</td><td><code>stack.env</code>; rotate per role.</td></tr>
+      <tr><td><code>INTERNAL_API_TOKEN</code></td><td>Bounce ingestion from Postfix to the API.</td><td><code>stack.env</code> and a root-only file in the Postfix container.</td></tr>
+      <tr><td>Relay, IMAP master, doveadm keys</td><td>API access to Postfix relay, webmail IMAP and access revocation.</td><td><code>stack.env</code>; private network only.</td></tr>
+      <tr><td>PesaTide, Africa's Talking, Google</td><td>Payments, SMS, sign-in.</td><td><code>stack.env</code>; rotate in each provider's dashboard.</td></tr>
+      <tr><td>Backup passphrase</td><td>Encrypted backup archives.</td><td>Root-only file (chmod 600) and an offline copy.</td></tr>
+      <tr><td>Session link keys</td><td>Sealed links for one browser session.</td><td>Random 32 bytes in the session; discarded at sign-out.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>7.3 Threats and mitigations</h2>
+  <table>
+    <thead><tr><th style="width:24%">Threat</th><th>Mitigation</th><th style="width:16%">Residual risk</th></tr></thead>
+    <tbody>
+      <tr><td>Credential stuffing and brute force</td><td>Rate limits at Nginx and per account; lockouts; breached-password screening; MFA; security alert emails on password and MFA changes.</td><td>Low</td></tr>
+      <tr><td>Cross-tenant data access (IDOR)</td><td>Tenant derived from the session; scoped queries; composite foreign keys; sealed links; integration tests per resource.</td><td>Low</td></tr>
+      <tr><td>Cross-site scripting</td><td>Escaping by default; strict CSP without inline script; mail bodies sanitised and sandboxed; Markdown renderer escapes all text.</td><td>Low</td></tr>
+      <tr><td>Cross-site request forgery</td><td>Synchronizer tokens; SameSite cookies; API double-submit check.</td><td>Low</td></tr>
+      <tr><td>Server-side request forgery</td><td>Guarded resolver refusing private and reserved addresses at connect time; no redirects; strict tool inputs.</td><td>Low</td></tr>
+      <tr><td>Open relay or spam abuse by a customer</td><td>Relay restrictions; plan quotas; suppressions; per-mailbox send limits; operator suspension with immediate revocation.</td><td>Medium: add new-sender limits before open launch</td></tr>
+      <tr><td>Forged payment confirmation</td><td>HMAC-verified webhooks; reconciliation with PesaTide's API; idempotent, immutable final states.</td><td>Low</td></tr>
+      <tr><td>Stolen API key</td><td>Hash-only storage; IP and sender-domain restrictions; expiry; one-click revoke and rotate; audit log.</td><td>Low–medium</td></tr>
+      <tr><td>Server compromise</td><td>Minimal ports; container hardening; secrets outside the web root; encrypted off-site backups; SSH keys only.</td><td>Medium: single VPS</td></tr>
+      <tr><td>Data loss</td><td>Daily encrypted backups with checksums; off-site copy; quarterly restore drill.</td><td>Low once the drill is practised</td></tr>
+    </tbody>
+  </table>
+  <div class="callout warn"><b>Before public launch:</b> deploy to a staging VPS and prove deliverability to Gmail and Outlook; run one live KES 1 M-Pesa payment and one live SMS code; test the phone setup on real Android and iOS devices; add limits for new senders; commission an independent penetration test; register with Kenya's Office of the Data Protection Commissioner.</div>
+</section>
+
+<!-- ═════════════════════════════ 8 DATA PROTECTION ═════════════════════════════ -->
+<section class="section">
+  <h1><span class="num">8</span>Data protection</h1>
+  <table>
+    <thead><tr><th style="width:22%">Data</th><th>Where it lives</th><th style="width:30%">Retention and protection</th></tr></thead>
+    <tbody>
+      <tr><td>Accounts</td><td>Usernames, names, email, phone, password hashes, MFA secrets (PostgreSQL).</td><td>Until the account is deleted; passwords as Argon2id hashes.</td></tr>
+      <tr><td>Hosted mail</td><td>Maildir files in the <code>vmail</code> volume.</td><td>Controlled by the institution; per-mailbox quotas; encrypted in backups.</td></tr>
+      <tr><td>Sent-message content</td><td>Message bodies in PostgreSQL for delivery and display.</td><td>Purged after <code>CONTENT_RETENTION_DAYS</code> (30 by default); metadata kept for the delivery log.</td></tr>
+      <tr><td>Billing</td><td>Invoices, payments, M-Pesa receipts and phone numbers.</td><td>Kept for statutory accounting periods; no card data processed.</td></tr>
+      <tr><td>Security events</td><td>Audit log: actor, action, target, IP, metadata.</td><td>Never contains passwords, tokens or message content.</td></tr>
+      <tr><td>Phone setup analytics</td><td>Setup steps, app chosen, help topics viewed.</td><td>No message content; used to improve onboarding.</td></tr>
+    </tbody>
+  </table>
+  <h2>Kenya Data Protection Act, 2019</h2>
+  <ul>
+    <li>The privacy notice lists every processor (PesaTide, Africa's Talking, Google sign-in, Pwned Passwords) and the right to complain to the Office of the Data Protection Commissioner (ODPC).</li>
+    <li>Institutions are data controllers for their staff's mail; Mailvora acts as their processor. The operator should register with the ODPC before launch.</li>
+    <li>Data subject requests (access, correction, deletion) are handled by operators from the operator console and the database, and recorded in the audit log.</li>
+  </ul>
+  <h2>Backups</h2>
+  <p><code>backend/infra/scripts/backup.sh</code> runs daily from cron. It dumps the database (<code>pg_dump -Fc</code>), archives the mailboxes and the configuration, writes SHA-256 checksums, encrypts everything into one archive with GnuPG (AES-256, passphrase file chmod 600), prunes archives older than the retention period, and is copied off the server to a different provider. A restore is drilled on a scratch VPS every quarter.</p>
+</section>
+
+<!-- ═════════════════════════════ 9 OPERATIONS ═════════════════════════════ -->
+<section class="section">
+  <h1><span class="num">9</span>Operations</h1>
+  <div class="grid2">
+    <div>
+      <h2 style="margin-top:0">Monitoring</h2>
+      <ul>
+        <li><code>/healthz</code> on the web app reports web and API health.</li>
+        <li>API metrics: outbox depth and oldest pending age, messages and webhook deliveries per hour, suspended organisations, database pool usage.</li>
+        <li>Operator console: delivery queue and failed jobs, receivables, security overview (failed sign-ins, locked accounts, operators and owners without MFA, privileged activity).</li>
+        <li>Container health checks and automatic restarts; bounded JSON logs.</li>
+      </ul>
+    </div>
+    <div>
+      <h2 style="margin-top:0">Incident response</h2>
+      <ul>
+        <li><b>Compromised tenant:</b> suspend the organisation (revokes sessions, keys and mail access immediately), review the audit log, notify the owner.</li>
+        <li><b>Spam outbreak:</b> suspend the sender, inspect the queue, requeue or drop jobs, check blocklists with the deliverability tools.</li>
+        <li><b>Payment dispute:</b> reconcile with PesaTide by reference and receipt; operators can record or void invoices.</li>
+        <li><b>Host compromise:</b> rebuild from a clean image, restore the latest verified backup, rotate every secret in <code>stack.env</code>.</li>
+      </ul>
+    </div>
+  </div>
+  <h2>Release gates</h2>
+  <table>
+    <thead><tr><th style="width:30%">Gate</th><th>Requirement</th></tr></thead>
+    <tbody>
+      <tr><td>Automated tests</td><td>Rust format, clippy (deny warnings) and test suites; PHP unit and feature tests; real-browser journey; API smoke and mailbox end-to-end scripts.</td></tr>
+      <tr><td>Mail tier</td><td>No open relay from an external host; unknown recipients rejected in SMTP; DKIM verified by an independent implementation.</td></tr>
+      <tr><td>Configuration</td><td>Production start-up validation passes; secrets set; certificates valid for the exact host names.</td></tr>
+      <tr><td>Security</td><td>Operators enrolled in MFA; penetration-test findings rated critical or high resolved.</td></tr>
+      <tr><td>Recovery</td><td>Backup job running; latest archive restored successfully on a scratch host.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═════════════════════════════ APPENDIX A ═════════════════════════════ -->
+<section class="section">
+  <h1><span class="num">A</span>Network and port reference</h1>
+  <table>
+    <thead><tr><th style="width:11%">Port</th><th style="width:17%">Service</th><th>Purpose</th><th style="width:22%">Reachable from</th></tr></thead>
+    <tbody>
+      <tr><td>22</td><td>SSH</td><td>Administration (keys only, no root login)</td><td>Operator IPs</td></tr>
+      <tr><td>25</td><td>Postfix</td><td>Inbound MX; outbound delivery to other servers</td><td>Internet</td></tr>
+      <tr><td>80</td><td>Nginx</td><td>Redirect to HTTPS; ACME challenges</td><td>Internet</td></tr>
+      <tr><td>443</td><td>Nginx</td><td>Web app, API, autoconfig/Autodiscover over TLS</td><td>Internet</td></tr>
+      <tr><td>465</td><td>Postfix</td><td>Client submission, implicit TLS (RFC 8314)</td><td>Internet</td></tr>
+      <tr><td>587</td><td>Postfix</td><td>Client submission, STARTTLS</td><td>Internet</td></tr>
+      <tr><td>993</td><td>Dovecot</td><td>IMAP over TLS</td><td>Internet</td></tr>
+      <tr><td>8080</td><td>Web app</td><td>Apache + PHP (behind Nginx)</td><td>Loopback only</td></tr>
+      <tr><td>8088</td><td>API</td><td>Rust REST API (behind Nginx and the web app)</td><td>Loopback only</td></tr>
+      <tr><td>5432</td><td>PostgreSQL</td><td>Database</td><td>Private network</td></tr>
+      <tr><td>10587</td><td>Postfix</td><td>Platform relay for API mail (SASL)</td><td>Private network</td></tr>
+      <tr><td>10026</td><td>Postfix</td><td>Auto-reply injection from Dovecot</td><td>Private network</td></tr>
+      <tr><td>11332</td><td>Rspamd</td><td>Milter</td><td>Private network</td></tr>
+      <tr><td>6379</td><td>Redis</td><td>Rspamd state</td><td>Private network</td></tr>
+      <tr><td>24</td><td>Dovecot</td><td>LMTP delivery from Postfix</td><td>Private network</td></tr>
+      <tr><td>12345</td><td>Dovecot</td><td>SASL authentication for Postfix</td><td>Private network</td></tr>
+      <tr><td>8080</td><td>Dovecot</td><td>doveadm HTTP API (access revocation)</td><td>Private network</td></tr>
+      <tr><td>4190</td><td>Dovecot</td><td>ManageSieve (vacation replies, filters)</td><td>Private network</td></tr>
+      <tr><td>10993</td><td>Dovecot</td><td>Quota policy service for Postfix</td><td>Private network</td></tr>
+    </tbody>
+  </table>
+  <h2>Host names</h2>
+  <table>
+    <thead><tr><th style="width:30%">Host</th><th>Serves</th></tr></thead>
+    <tbody>
+      <tr><td><code>app.example.com</code></td><td>Website, console, operator console, webmail, phone setup, documentation</td></tr>
+      <tr><td><code>api.example.com</code></td><td>REST API for applications (internal and webmail paths blocked)</td></tr>
+      <tr><td><code>mail.example.com</code></td><td>MX target and IMAP/SMTP host (A and PTR records)</td></tr>
+      <tr><td><code>autoconfig.example.com</code></td><td>Thunderbird autoconfig and Outlook Autodiscover</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═════════════════════════════ APPENDIX B ═════════════════════════════ -->
+<section class="section">
+  <h1><span class="num">B</span>Document control</h1>
+  <table>
+    <thead><tr><th style="width:30%">Item</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Document</td><td>Mailvora System Infrastructure</td></tr>
+      <tr><td>Version</td><td>1.0 (pre-production baseline)</td></tr>
+      <tr><td>Date</td><td>15 October 2026</td></tr>
+      <tr><td>Owner</td><td>Platform operations, Mailvora</td></tr>
+      <tr><td>Classification</td><td>Confidential: platform operators and authorised reviewers</td></tr>
+      <tr><td>Review cycle</td><td>Every release that changes topology, ports or security controls, and at least every six months</td></tr>
+      <tr><td>Source</td><td><code>frontend/resources/infrastructure/system-infrastructure.html</code>, built with <code>frontend/scripts/build_infrastructure_pdf.py</code></td></tr>
+      <tr><td>Related</td><td>Operator wiki: Architecture, Security model, Security readiness, Sealed links, Operations, VPS deployment, Configuration</td></tr>
+    </tbody>
+  </table>
+  <h2>Revision history</h2>
+  <table>
+    <thead><tr><th style="width:14%">Version</th><th style="width:20%">Date</th><th>Changes</th></tr></thead>
+    <tbody>
+      <tr><td>1.0</td><td>15 Oct 2026</td><td>First edition: context, deployment, flows, security architecture, controls, data protection, operations, port reference.</td></tr>
+    </tbody>
+  </table>
+  <p class="muted" style="margin-top:12mm">© 2026 Mailvora. All rights reserved. Powered by <b style="color:#0b7a5c">TECHCORE SOLUTIONS</b>.</p>
+</section>
+
+</body>
+</html>

@@ -1,0 +1,127 @@
+# Local development and testing stack. The API runs on the host (start-local.cmd).
+#
+#   docker compose -f infra/docker-compose.dev.yml up -d --build
+#
+# Default services (enough for everything in the console and webmail):
+#   Postgres  → localhost:5434        (5432 is often taken by a host install)
+#   Mailpit   → SMTP localhost:1025, UI http://localhost:8025
+#               All outbound mail is caught here; nothing leaves this machine.
+#   Dovecot   → IMAP localhost:1143, IMAPS localhost:1993, LMTP localhost:2424,
+#               doveadm API localhost:18080, ManageSieve localhost:4190 (out-of-office).
+#               Stores hosted mailboxes for webmail.
+#
+# Optional real mail servers, for the mail-tier tests only:
+#   docker compose -f infra/docker-compose.dev.yml --profile mailtier up -d --build
+#   Postfix   → MX localhost:2525, submission localhost:2587, platform relay localhost:10587
+#   Rspamd + Redis (spam filtering milter)
+# Keep the API on Mailpit (the default) unless you deliberately test the relay:
+# pointing it at Postfix would attempt real internet delivery.
+#
+# All passwords below are development-only values.
+name: mailvora-dev
+
+x-mailserver-db: &mailserver-db
+  DB_HOST: postgres
+  DB_NAME: mailvora
+  DB_USER: mv_mailserver
+  DB_PASSWORD: mv_mailserver_dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mailvora
+      POSTGRES_PASSWORD: mailvora_dev
+      POSTGRES_DB: mailvora
+    ports:
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mailvora -d mailvora"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    restart: unless-stopped
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+      MP_MAX_MESSAGES: "5000"
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+
+  dovecot:
+    build: ./dovecot
+    image: mailvora/dovecot
+    restart: unless-stopped
+    hostname: mail.mailvora.localhost
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *mailserver-db
+      MAIL_HOSTNAME: mail.mailvora.localhost
+      # Docker Desktop forwards host connections from the bridge gateway,
+      # so the whole bridge range is trusted for plaintext IMAP from the API.
+      TRUSTED_NETWORK: 172.16.0.0/12
+      IMAP_MASTER_USER: webmail
+      IMAP_MASTER_PASSWORD: dev-master-password-change-me-123
+      RELAY_USER: relay@platform.internal
+      RELAY_PASSWORD: dev-relay-password-123
+      DOVEADM_API_KEY: dev-doveadm-key-0123456789
+      # Out-of-office replies are caught by Mailpit in development.
+      SUBMISSION_HOST: mailpit:1025
+    ports:
+      - "127.0.0.1:1143:143"
+      - "127.0.0.1:1993:993"
+      - "127.0.0.1:2424:24"
+      - "127.0.0.1:18080:8080"
+      - "127.0.0.1:4190:4190"
+    volumes:
+      - vmail:/var/vmail
+
+  postfix:
+    profiles: ["mailtier"]
+    build: ./postfix
+    image: mailvora/postfix
+    restart: unless-stopped
+    hostname: mail.mailvora.localhost
+    depends_on: [dovecot, rspamd]
+    environment:
+      <<: *mailserver-db
+      MAIL_HOSTNAME: mail.mailvora.localhost
+      RETURN_PATH_DOMAIN: bounces.mailvora.localhost
+      DOVECOT_HOST: dovecot
+      RSPAMD_HOST: rspamd
+      RELAY_USER: relay@platform.internal
+      INTERNAL_API_TOKEN: dev-internal-token-change-me-0123456789
+      PLATFORM_API_URL: http://host.docker.internal:8088
+    ports:
+      - "127.0.0.1:2525:25"
+      - "127.0.0.1:2587:587"
+      - "127.0.0.1:2465:465"
+      - "127.0.0.1:10587:10587"
+
+  rspamd:
+    profiles: ["mailtier"]
+    build: ./rspamd
+    image: mailvora/rspamd
+    restart: unless-stopped
+    depends_on: [redis]
+    environment:
+      RSPAMD_CONTROLLER_PASSWORD: dev-rspamd-pass
+
+  redis:
+    profiles: ["mailtier"]
+    image: redis:7-alpine
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  vmail:

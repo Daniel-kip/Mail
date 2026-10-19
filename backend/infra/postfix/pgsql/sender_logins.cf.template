@@ -1,0 +1,6 @@
+# Read-only lookup against the platform database (role: mv_mailserver).
+hosts = ${DB_HOST}
+user = ${DB_USER}
+password = ${DB_PASSWORD}
+dbname = ${DB_NAME}
+query = SELECT logins FROM mail_sender_logins WHERE address = lower('%s')

@@ -1,0 +1,19 @@
+{
+  "title": "Mailvora System Infrastructure",
+  "version": "1.0",
+  "built_at": "2026-10-15T11:00:24+00:00",
+  "file": "Mailvora-System-Infrastructure.pdf",
+  "bytes": 1647782,
+  "sha256": "43468d129e9a89cd1478bb38f95080fcdd9faa405a0317e355b2f94524c62f8b",
+  "pages": 18,
+  "landscape_pages": [
+    5,
+    7,
+    11
+  ],
+  "previews": [
+    "preview-cover.png",
+    "preview-deployment.png",
+    "preview-security.png"
+  ]
+}

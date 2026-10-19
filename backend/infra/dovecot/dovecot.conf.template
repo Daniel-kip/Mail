@@ -1,0 +1,179 @@
+# Dovecot 2.3 — IMAP, LMTP, SASL for Postfix, quota policy.
+# Rendered at container start by entrypoint.sh (envsubst).
+
+protocols = imap lmtp sieve
+listen = *
+log_path = /dev/stderr
+info_log_path = /dev/stdout
+auth_verbose = yes
+auth_verbose_passwords = no
+mail_privileged_group = vmail
+
+# ── TLS ──────────────────────────────────────────────────────────────────
+ssl = yes
+ssl_cert = </etc/ssl/mail/fullchain.pem
+ssl_key = </etc/ssl/mail/privkey.pem
+ssl_min_protocol = TLSv1.2
+ssl_prefer_server_ciphers = yes
+disable_plaintext_auth = yes
+# The platform API (webmail) and Postfix reach Dovecot over the private
+# network without TLS; plaintext auth is permitted only from that network.
+login_trusted_networks = ${TRUSTED_NETWORK}
+
+# ── storage ──────────────────────────────────────────────────────────────
+# Home and mail location come from the SQL userdb (per-mailbox storage key).
+first_valid_uid = 5000
+last_valid_uid = 5000
+mail_location = maildir:~/Maildir
+mail_plugins = $mail_plugins quota
+
+namespace inbox {
+  inbox = yes
+  separator = /
+  mailbox Drafts {
+    special_use = \Drafts
+    auto = subscribe
+  }
+  mailbox Sent {
+    special_use = \Sent
+    auto = subscribe
+  }
+  mailbox Archive {
+    special_use = \Archive
+    auto = subscribe
+  }
+  mailbox Junk {
+    special_use = \Junk
+    auto = subscribe
+    autoexpunge = 30d
+  }
+  mailbox Trash {
+    special_use = \Trash
+    auto = subscribe
+    autoexpunge = 30d
+  }
+}
+
+# ── authentication ───────────────────────────────────────────────────────
+auth_mechanisms = plain login
+auth_master_user_separator = *
+auth_cache_size = 10M
+auth_cache_ttl = 1 min
+auth_cache_negative_ttl = 30 s
+auth_failure_delay = 2 secs
+
+# Webmail master user: the API logs in as "address*webmail" after verifying
+# the mailbox password itself. result_success=continue makes Dovecot still
+# require the target user to exist (i.e. be active) in the SQL passdb.
+passdb {
+  driver = passwd-file
+  args = scheme=ARGON2ID /etc/dovecot/private/master-users
+  master = yes
+  result_success = continue
+}
+# Platform relay identity used by the API workers on Postfix port 10587.
+passdb {
+  driver = passwd-file
+  args = scheme=ARGON2ID /etc/dovecot/private/relay-users
+}
+passdb {
+  driver = sql
+  args = /etc/dovecot/dovecot-sql.conf.ext
+}
+userdb {
+  driver = sql
+  args = /etc/dovecot/dovecot-sql.conf.ext
+}
+# No static userdb: an unknown user must never resolve to a mailbox. The
+# relay identity only authenticates SASL (passdb) and never receives mail.
+
+# ── services ─────────────────────────────────────────────────────────────
+service imap-login {
+  inet_listener imap {
+    port = 143
+  }
+  inet_listener imaps {
+    port = 993
+    ssl = yes
+  }
+  process_min_avail = 2
+}
+service lmtp {
+  inet_listener lmtp {
+    port = 24
+  }
+}
+service auth {
+  # SASL for Postfix over the private network.
+  inet_listener sasl {
+    port = 12345
+  }
+  unix_listener auth-userdb {
+    mode = 0660
+    user = vmail
+  }
+}
+# doveadm HTTP API: the platform flushes the auth cache and kicks sessions
+# when a mailbox is disabled, deleted, re-passworded or its tenant
+# suspended. Private network only; never publish port 8080.
+doveadm_api_key = ${DOVEADM_API_KEY}
+service doveadm {
+  inet_listener http {
+    port = 8080
+  }
+}
+
+# ManageSieve (RFC 5804): the platform installs out-of-office scripts as the
+# webmail master user. Private network only; never publish port 4190.
+service managesieve-login {
+  inet_listener sieve {
+    port = 4190
+  }
+}
+protocol sieve {
+  managesieve_max_line_length = 65536
+}
+
+service quota-status {
+  executable = quota-status -p postfix
+  inet_listener {
+    port = 10993
+  }
+  client_limit = 1
+}
+
+protocol imap {
+  mail_plugins = $mail_plugins imap_quota
+  mail_max_userip_connections = 20
+}
+protocol lmtp {
+  # Sieve runs each mailbox's out-of-office script at delivery (RFC 5230).
+  mail_plugins = $mail_plugins sieve
+  postmaster_address = postmaster@${MAIL_HOSTNAME}
+}
+
+# ── quota (per-mailbox limit from the userdb quota_rule) ─────────────────
+plugin {
+  quota = count:User quota
+  quota_vsizes = yes
+  quota_rule = *:storage=1G
+  quota_rule2 = Trash:storage=+10%%
+  quota_grace = 5%%
+  quota_status_success = DUNNO
+  quota_status_nouser = DUNNO
+  quota_status_overquota = "552 5.2.2 Mailbox is full"
+}
+
+# ── Sieve ────────────────────────────────────────────────────────────────
+# Out-of-office replies leave through the MTA (production: Postfix's private
+# auto-reply listener; development: Mailpit).
+submission_host = ${SUBMISSION_HOST}
+plugin {
+  sieve = file:~/sieve;active=~/.dovecot.sieve
+  sieve_extensions = +vacation-seconds
+  sieve_vacation_min_period = 1h
+  sieve_vacation_default_period = 3d
+  sieve_vacation_dont_check_recipient = no
+  sieve_max_script_size = 64K
+  sieve_quota_max_scripts = 10
+}

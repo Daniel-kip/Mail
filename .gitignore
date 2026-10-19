@@ -1,0 +1,9 @@
+
+# Rust build artifacts
+/target/
+**/target/
+
+# Environment and local secrets
+.env
+.env.*
+!.env.example

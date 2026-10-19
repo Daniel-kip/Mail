@@ -1,0 +1,8 @@
+target
+**/.env
+stack.env
+*.log
+docs
+infra
+scripts
+tests

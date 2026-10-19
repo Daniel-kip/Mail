@@ -1,0 +1,199 @@
+# Mailvora full stack on one VPS: PHP web frontend, Rust API + workers,
+# PostgreSQL, Postfix, Dovecot (IMAP, Sieve), Rspamd and Redis.
+# See frontend/resources/wiki/VPS-Deployment.md (no git required: copy the folder, then run).
+#
+#   cp stack.env.example stack.env    # fill every value marked REQUIRED
+#   docker compose --env-file stack.env up -d --build
+#   docker compose exec api mailvora promote-admin you@example.com
+#
+# Put Nginx (infra/nginx/mailvora.conf) in front: it terminates TLS for the
+# web app (frontend, 127.0.0.1:8080), the API host and autoconfig hosts.
+# Never publish 5432, 10587, 10026, 143, 4190, 8080 (dovecot), 12345, 10993 or 11334.
+name: mailvora
+
+# Every container: no privilege escalation and bounded logs.
+x-hardening: &hardening
+  security_opt:
+    - no-new-privileges:true
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+
+x-db-env: &db-env
+  DB_HOST: postgres
+  DB_NAME: mailvora
+  DB_USER: mv_mailserver
+  DB_PASSWORD: ${MV_MAILSERVER_PASSWORD:?MV_MAILSERVER_PASSWORD is required}
+
+networks:
+  mailnet:
+    ipam:
+      config:
+        - subnet: 10.89.0.0/24
+
+volumes:
+  pgdata:
+  web-sessions:
+  vmail:
+  postfix-spool:
+  postfix-certs:
+  dovecot-certs:
+  redis-data:
+
+services:
+  postgres:
+    <<: *hardening
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mailvora
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: mailvora
+      MV_APP_PASSWORD: ${MV_APP_PASSWORD:?MV_APP_PASSWORD is required}
+      MV_MAILSERVER_PASSWORD: ${MV_MAILSERVER_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    networks: [mailnet]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mailvora -d mailvora"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    <<: *hardening
+    build:
+      context: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    cap_drop: [ALL]
+    env_file: stack.env
+    environment:
+      DATABASE_URL: postgres://mv_app:${MV_APP_PASSWORD}@postgres:5432/mailvora
+      MIGRATION_DATABASE_URL: postgres://mailvora:${POSTGRES_PASSWORD}@postgres:5432/mailvora
+      RUN_MIGRATIONS_ON_START: "true"
+      HTTP_BIND: 0.0.0.0:8088
+      TRUST_PROXY_HEADERS: "true"
+      SMTP_RELAY_HOST: postfix
+      SMTP_RELAY_PORT: "10587"
+      SMTP_RELAY_TLS: none
+      SMTP_RELAY_USERNAME: ${RELAY_USER:-relay@platform.internal}
+      SMTP_RELAY_PASSWORD: ${RELAY_PASSWORD:?RELAY_PASSWORD is required}
+      IMAP_HOST: dovecot
+      IMAP_PORT: "143"
+      IMAP_TLS: none
+      IMAP_MASTER_USER: ${IMAP_MASTER_USER:-webmail}
+      IMAP_MASTER_PASSWORD: ${IMAP_MASTER_PASSWORD:?IMAP_MASTER_PASSWORD is required}
+      DOVEADM_API_URL: http://dovecot:8080
+      DOVEADM_API_KEY: ${DOVEADM_API_KEY:?DOVEADM_API_KEY is required}
+      MANAGESIEVE_HOST: dovecot
+      MANAGESIEVE_PORT: "4190"
+    ports:
+      - "127.0.0.1:8088:8088"
+    networks: [mailnet]
+
+  frontend:
+    <<: *hardening
+    build:
+      context: ../frontend
+    restart: unless-stopped
+    # Apache binds :80 as root, then drops to www-data.
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE, SETUID, SETGID]
+    depends_on:
+      - api
+    environment:
+      APP_ENV: production
+      SESSION_SECURE: "true"
+      TRUST_PROXY: "true"
+      APP_URL: ${PUBLIC_BASE_URL:?PUBLIC_BASE_URL is required}
+      API_URL: http://api:8088
+      PUBLIC_API_URL: ${PUBLIC_API_URL:?PUBLIC_API_URL is required}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Africa/Nairobi}
+      PRODUCT_NAME: ${PRODUCT_NAME:-Mailvora}
+      SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
+      COMPANY_NAME: ${COMPANY_NAME:-Mailvora}
+      COMPANY_ADDRESS: ${COMPANY_ADDRESS:-}
+      SIGNUP_ENABLED: ${SIGNUP_ENABLED:-true}
+      # Optional Apple profile signing: mount the files at /run/secrets/apple.
+      APPLE_PROFILE_SIGNING_CERT: ${APPLE_PROFILE_SIGNING_CERT:-}
+      APPLE_PROFILE_SIGNING_KEY: ${APPLE_PROFILE_SIGNING_KEY:-}
+      APPLE_PROFILE_SIGNING_CHAIN: ${APPLE_PROFILE_SIGNING_CHAIN:-}
+    volumes:
+      - web-sessions:/var/www/mailvora/storage/sessions
+    ports:
+      - "127.0.0.1:8080:80"
+    networks: [mailnet]
+
+  postfix:
+    <<: *hardening
+    build: ./infra/postfix
+    restart: unless-stopped
+    hostname: ${MAIL_HOSTNAME:?MAIL_HOSTNAME is required}
+    depends_on: [dovecot, rspamd]
+    environment:
+      <<: *db-env
+      MAIL_HOSTNAME: ${MAIL_HOSTNAME}
+      RETURN_PATH_DOMAIN: ${RETURN_PATH_DOMAIN:?RETURN_PATH_DOMAIN is required}
+      DOVECOT_HOST: dovecot
+      RSPAMD_HOST: rspamd
+      RELAY_USER: ${RELAY_USER:-relay@platform.internal}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN is required}
+      PLATFORM_API_URL: http://api:8088
+      INTERNAL_NETWORK: 10.89.0.0/24
+    ports:
+      - "25:25"
+      - "465:465"
+      - "587:587"
+    volumes:
+      - postfix-spool:/var/spool/postfix
+      - postfix-certs:/etc/ssl/mail
+    networks: [mailnet]
+
+  dovecot:
+    <<: *hardening
+    build: ./infra/dovecot
+    restart: unless-stopped
+    hostname: ${MAIL_HOSTNAME}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *db-env
+      MAIL_HOSTNAME: ${MAIL_HOSTNAME}
+      TRUSTED_NETWORK: 10.89.0.0/24
+      IMAP_MASTER_USER: ${IMAP_MASTER_USER:-webmail}
+      IMAP_MASTER_PASSWORD: ${IMAP_MASTER_PASSWORD}
+      RELAY_USER: ${RELAY_USER:-relay@platform.internal}
+      RELAY_PASSWORD: ${RELAY_PASSWORD}
+      DOVEADM_API_KEY: ${DOVEADM_API_KEY}
+      SUBMISSION_HOST: postfix:10026
+    ports:
+      - "993:993"
+    volumes:
+      - vmail:/var/vmail
+      - dovecot-certs:/etc/ssl/mail
+    networks: [mailnet]
+
+  rspamd:
+    <<: *hardening
+    build: ./infra/rspamd
+    restart: unless-stopped
+    depends_on: [redis]
+    environment:
+      RSPAMD_CONTROLLER_PASSWORD: ${RSPAMD_CONTROLLER_PASSWORD:?RSPAMD_CONTROLLER_PASSWORD is required}
+    networks: [mailnet]
+
+  redis:
+    <<: *hardening
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "300", "10", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - redis-data:/data
+    networks: [mailnet]

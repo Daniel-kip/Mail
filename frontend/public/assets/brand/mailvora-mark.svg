@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Mailvora">
+  <defs>
+    <linearGradient id="mv-body" x1="16" y1="18" x2="48" y2="47" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1c8cff"/>
+      <stop offset="1" stop-color="#0a3fe0"/>
+    </linearGradient>
+    <linearGradient id="mv-flap" x1="18" y1="14" x2="44" y2="32" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#41dcff"/>
+      <stop offset="1" stop-color="#1676ff"/>
+    </linearGradient>
+    <linearGradient id="mv-ring" x1="7" y1="44" x2="59" y2="27" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1a6dff"/>
+      <stop offset=".55" stop-color="#2bc3ff"/>
+      <stop offset="1" stop-color="#7fe6ff"/>
+    </linearGradient>
+  </defs>
+  <!-- back half of the orbit, behind the envelope -->
+  <path d="M7.9 43.3A26.5 9.2 -16 0 1 58.6 28.6" fill="none" stroke="url(#mv-ring)" stroke-width="3.2" stroke-linecap="round" opacity=".55"/>
+  <rect x="16" y="17" width="33" height="30" rx="5" fill="url(#mv-body)"/>
+  <path d="M17.5 17.4 32.5 30.2 47.5 17.4Z" fill="url(#mv-flap)"/>
+  <path d="M16.5 19.6 32.5 33.4 48.5 19.6" fill="none" stroke="#06102b" stroke-width="2.6" stroke-linejoin="round"/>
+  <!-- front half of the orbit, across the envelope -->
+  <path d="M7.9 43.3A26.5 9.2 -16 0 0 58.6 28.6" fill="none" stroke="url(#mv-ring)" stroke-width="3.6" stroke-linecap="round"/>
+</svg>
